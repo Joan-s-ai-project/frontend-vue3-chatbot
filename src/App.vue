@@ -2,22 +2,36 @@
 import { ref } from 'vue'
 import { sendMessage } from '@/services/chat'
 import ChatInput from '@/components/ChatInput.vue'
+import MessageList from '@/components/MessageList.vue'
+import type { Message } from '@/components/MessageList.vue'
 
-const reply = ref('')
+const messages = ref<Message[]>([])
 const loading = ref(false)
 
-async function handleSend(message: string) {
-  console.log('[App] 发送:', message)
+async function handleSend(text: string) {
+  console.log(text);
+  // 1. 推入 user 消息
+  messages.value.push({
+    id: Date.now(),
+    content: text,
+    isUser: true
+  })
+
+  // 2. 推入 assistant 占位（显示 loading）
+  messages.value.push({
+    id: Date.now() + 1,
+    content: '',
+    isUser: false
+  })
+  // 拿到数组里的代理对象（而非原始对象），这样改属性才能触发视图更新
+  const aiMsg = messages.value[messages.value.length - 1]
   loading.value = true
-  reply.value = ''
 
   try {
-    const result = await sendMessage(message)
-    console.log('[App] 收到回复:', result)
-    reply.value = result.content
+    const result = await sendMessage(text)
+    aiMsg.content = result.content
   } catch (err: any) {
-    console.error('[App] 错误:', err.message)
-    reply.value = `❌ ${err.message}`
+    aiMsg.content = `❌ ${err.message}`
   } finally {
     loading.value = false
   }
@@ -26,13 +40,21 @@ async function handleSend(message: string) {
 
 <template>
   <div id="app">
-    <div class="chat-area">
-      <div class="reply-box" v-if="reply || loading">
-        <p v-if="loading" class="loading">AI 思考中...</p>
-        <p v-else>{{ reply }}</p>
-      </div>
-      <p v-else class="placeholder">发一条消息试试 👇</p>
+    <!-- 空状态 -->
+    <div v-if="messages.length === 0" class="welcome">
+      <h1>💬 AI Chat</h1>
+      <p>发一条消息开始对话</p>
     </div>
+
+    <!-- 消息列表 -->
+    <MessageList v-else :messages="messages" />
+
+    <!-- 加载指示 -->
+    <div v-if="loading" class="typing-indicator">
+      AI 思考中<span class="dots">...</span>
+    </div>
+
+    <!-- 输入框 -->
     <ChatInput @send="handleSend" />
   </div>
 </template>
@@ -56,36 +78,36 @@ body {
   height: 100vh;
 }
 
-.chat-area {
+.welcome {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  gap: 0.5rem;
 }
 
-.placeholder {
+.welcome h1 {
+  font-size: 2rem;
+}
+
+.welcome p {
   color: #999;
-  font-size: 1.1rem;
+  font-size: 1rem;
 }
 
-.reply-box {
-  max-width: 600px;
-  padding: 1rem 1.5rem;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.loading {
+.typing-indicator {
+  padding: 0.5rem 1.5rem;
   color: #999;
-  animation: pulse 1.5s infinite;
+  font-size: 0.85rem;
 }
 
-@keyframes pulse {
+.dots {
+  animation: blink 1.4s infinite;
+}
+
+@keyframes blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+  50% { opacity: 0.2; }
 }
 </style>
