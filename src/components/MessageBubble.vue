@@ -13,13 +13,12 @@ defineProps<{
   <div class="bubble" :class="{ user: isUser, assistant: !isUser }">
     <div class="avatar">{{ isUser ? '🧑' : '🤖' }}</div>
     <div class="body">
-      <!-- 推理过程（仅 assistant 有） -->
       <ThinkingBlock
         v-if="!isUser && (reasoning || reasoningLoading)"
         :content="reasoning || ''"
         :loading="reasoningLoading"
       />
-      <div class="content">{{ content }}</div>
+      <div class="content" v-if="content">{{ content }}</div>
     </div>
   </div>
 </template>
@@ -27,9 +26,15 @@ defineProps<{
 <style scoped>
 .bubble {
   display: flex;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  max-width: 80%;
+  gap: 0.6rem;
+  padding: 0.5rem 1rem;
+  max-width: 85%;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .bubble.user {
@@ -42,26 +47,39 @@ defineProps<{
 }
 
 .avatar {
-  font-size: 1.5rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  border-radius: 50%;
+  background: #f0f1f5;
   flex-shrink: 0;
+}
+
+.user .avatar {
+  background: #e8ecff;
 }
 
 .body {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.3rem;
+  min-width: 0;
 }
 
 .content {
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
+  padding: 0.65rem 0.9rem;
+  border-radius: 14px;
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
+  font-size: 0.93rem;
 }
 
 .user .content {
-  background: #4a90d9;
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: #fff;
   border-bottom-right-radius: 4px;
 }
@@ -70,6 +88,6 @@ defineProps<{
   background: #fff;
   color: #333;
   border-bottom-left-radius: 4px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
 }
 </style>
