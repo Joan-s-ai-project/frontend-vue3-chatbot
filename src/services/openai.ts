@@ -111,8 +111,8 @@ export async function sendStreamChatMessage(
     const stream = await openai.chat.completions.create({
       model: modelOptions.model || 'gpt-4o-mini',
       messages,
-      temperature: modelOptions.temperature ?? 0.7,
-      max_tokens: modelOptions.maxTokens ?? 1000,
+      // temperature: modelOptions.temperature ?? 0.7,
+      // max_tokens: modelOptions.maxTokens ?? 1000,
       stream: true
     })
 
