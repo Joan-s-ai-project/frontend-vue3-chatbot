@@ -12,74 +12,11 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      // https://api.ppinfra.com/v3/openai/chat/completions
-      // 第三方 API 代理配置 (api.ppinfra.com)
-      '/api/ppinfra': {
-        target: 'https://api.ppinfra.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/ppinfra/, ''),
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('Sending Request:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response:', proxyRes.statusCode, req.url);
-          });
-        }
-      },
-      // 官方 OpenAI API 代理配置（备用）
-      '/api/openai': {
-        target: 'https://api.openai.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/openai/, ''),
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('Sending Request:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response:', proxyRes.statusCode, req.url);
-          });
-        }
-      },
-      // Gemini API 代理配置
-      '/api/gemini': {
-        target: 'https://generativelanguage.googleapis.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/gemini/, ''),
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('Sending Request:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response:', proxyRes.statusCode, req.url);
-          });
-        }
-      },
-      // Koa 后端代理
-      '/v1': {
+      // 将 /api 代理到 Koa 后端
+      '/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (_proxyReq, req, _res) => {
-            console.log('Sending Request:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response:', proxyRes.statusCode, req.url);
-          });
-        }
-      },
+      }
     }
   }
 })
