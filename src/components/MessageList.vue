@@ -6,6 +6,8 @@ export interface Message {
   id: number
   content: string
   isUser: boolean
+  reasoning?: string
+  reasoningLoading?: boolean
 }
 
 const props = defineProps<{
@@ -33,6 +35,8 @@ watch(
       :key="msg.id"
       :content="msg.content"
       :is-user="msg.isUser"
+      :reasoning="msg.reasoning"
+      :reasoning-loading="msg.reasoningLoading"
     />
   </div>
 </template>

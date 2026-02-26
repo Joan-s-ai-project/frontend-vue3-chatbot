@@ -1,14 +1,26 @@
 <script setup lang="ts">
+import ThinkingBlock from './ThinkingBlock.vue'
+
 defineProps<{
   content: string
   isUser: boolean
+  reasoning?: string
+  reasoningLoading?: boolean
 }>()
 </script>
 
 <template>
   <div class="bubble" :class="{ user: isUser, assistant: !isUser }">
     <div class="avatar">{{ isUser ? '🧑' : '🤖' }}</div>
-    <div class="content">{{ content }}</div>
+    <div class="body">
+      <!-- 推理过程（仅 assistant 有） -->
+      <ThinkingBlock
+        v-if="!isUser && (reasoning || reasoningLoading)"
+        :content="reasoning || ''"
+        :loading="reasoningLoading"
+      />
+      <div class="content">{{ content }}</div>
+    </div>
   </div>
 </template>
 
@@ -32,6 +44,12 @@ defineProps<{
 .avatar {
   font-size: 1.5rem;
   flex-shrink: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .content {

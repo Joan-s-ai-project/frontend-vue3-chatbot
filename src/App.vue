@@ -20,22 +20,30 @@ async function handleSend(text: string) {
   messages.value.push({
     id: Date.now() + 1,
     content: '',
-    isUser: false
+    isUser: false,
+    reasoning: '',
+    reasoningLoading: true
   })
   const aiMsg = messages.value[messages.value.length - 1]
   loading.value = true
 
   try {
     await sendStreamMessage(text, {
+      onReasoning(chunk) {
+        aiMsg.reasoning += chunk  // 推理过程逐字追加
+      },
       onContent(chunk) {
-        aiMsg.content += chunk  // 逐字追加 → 打字效果
+        aiMsg.reasoningLoading = false  // 推理结束，内容开始
+        aiMsg.content += chunk
       },
       onDone(usage) {
         console.log('[App] 完成, tokens:', usage)
+        aiMsg.reasoningLoading = false
         loading.value = false
       },
       onError(msg) {
         aiMsg.content = `❌ ${msg}`
+        aiMsg.reasoningLoading = false
         loading.value = false
       }
     })
