@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { sendMessage } from '@/services/chat'
+import { sendStreamMessage } from '@/services/chat'
 import ChatInput from '@/components/ChatInput.vue'
 import MessageList from '@/components/MessageList.vue'
 import type { Message } from '@/components/MessageList.vue'
@@ -9,7 +9,6 @@ const messages = ref<Message[]>([])
 const loading = ref(false)
 
 async function handleSend(text: string) {
-  console.log(text);
   // 1. 推入 user 消息
   messages.value.push({
     id: Date.now(),
@@ -17,19 +16,29 @@ async function handleSend(text: string) {
     isUser: true
   })
 
-  // 2. 推入 assistant 占位（显示 loading）
+  // 2. 推入 assistant 占位
   messages.value.push({
     id: Date.now() + 1,
     content: '',
     isUser: false
   })
-  // 拿到数组里的代理对象（而非原始对象），这样改属性才能触发视图更新
   const aiMsg = messages.value[messages.value.length - 1]
   loading.value = true
 
   try {
-    const result = await sendMessage(text)
-    aiMsg.content = result.content
+    await sendStreamMessage(text, {
+      onContent(chunk) {
+        aiMsg.content += chunk  // 逐字追加 → 打字效果
+      },
+      onDone(usage) {
+        console.log('[App] 完成, tokens:', usage)
+        loading.value = false
+      },
+      onError(msg) {
+        aiMsg.content = `❌ ${msg}`
+        loading.value = false
+      }
+    })
   } catch (err: any) {
     aiMsg.content = `❌ ${err.message}`
   } finally {
