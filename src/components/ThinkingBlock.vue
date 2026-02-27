@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { marked } from 'marked'
 
-defineProps<{
+const props = defineProps<{
   content: string
   loading?: boolean
 }>()
 
 const expanded = ref(false)
+
+const renderedContent = computed(() => {
+  if (!props.content) return ''
+  return marked.parse(props.content) as string
+})
 </script>
 
 <template>
@@ -17,8 +23,7 @@ const expanded = ref(false)
       <span class="arrow" :class="{ open: expanded }">›</span>
     </div>
     <transition name="slide">
-      <div v-if="expanded" class="thinking-content">
-        {{ content }}
+      <div v-if="expanded" class="thinking-content" v-html="renderedContent">
       </div>
     </transition>
   </div>
@@ -30,6 +35,7 @@ const expanded = ref(false)
   overflow: hidden;
   font-size: 0.82rem;
   border: 1px solid #e8e8e8;
+  width: 100%;
 }
 
 .thinking-block.loading {
@@ -84,11 +90,22 @@ const expanded = ref(false)
   padding: 0.5rem 0.7rem;
   color: #777;
   line-height: 1.55;
-  white-space: pre-wrap;
   border-top: 1px solid #eee;
   background: #fafbff;
-  max-height: 300px;
-  overflow-y: auto;
+}
+
+.thinking-content :deep(p) {
+  margin: 0.3em 0;
+}
+
+.thinking-content :deep(ol),
+.thinking-content :deep(ul) {
+  margin: 0.3em 0;
+  padding-left: 1.5em;
+}
+
+.thinking-content :deep(li) {
+  margin: 0.15em 0;
 }
 
 /* 展开动画 */

@@ -68,6 +68,18 @@
 **验证**:
 - 整体 UI 达到生产级审美，交互流畅，支持移动端自适应。
 
+### Step 7: Markdown 渲染 (LLM 返回内容格式化)
+**工作内容**:
+- 安装 `marked` 库，用于将 LLM 返回的 Markdown 文本转换为 HTML。
+- **MessageBubble.vue**: 将 `{{ content }}` 纯文本插值替换为 `marked.parse()` + `v-html`，支持渲染 `**粗体**`、标题、列表、代码块、表格、引用、链接等 Markdown 语法。
+- **HTML 标签透传**: `marked` 默认保留原始 HTML，`<details>`/`<summary>` 等标签直接渲染为可折叠区域，无需额外处理。
+- **ThinkingBlock.vue**: 思考过程内容同样使用 `marked` + `v-html` 渲染；移除 `white-space: pre-wrap`，改为添加 `:deep(ol/ul/p)` 样式，修复有序列表序号被左侧裁切、未与上下文对齐的问题；移除 `max-height` 限制，思考内容完整展开。
+- **排版样式**: 添加 `.markdown-body :deep()` 系列样式，覆盖标题 (`h1`~`h6`)、列表、行内代码、代码块 (深色主题)、引用 (左边框)、表格、`<details>`/`<summary>` (自定义箭头动画) 等。用户气泡 (紫色渐变) 内的代码和引用有浅色覆盖样式。
+- 配置 `marked.setOptions({ breaks: true })`，支持单个换行符转 `<br>`。
+
+**验证**:
+- AI 回复中的 Markdown 格式正确渲染：粗体、标题、列表、代码块、折叠区域等均展示正常。
+
 ---
 
 ## 运行与部署
