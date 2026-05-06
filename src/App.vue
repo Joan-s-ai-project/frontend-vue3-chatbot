@@ -135,16 +135,17 @@ const sendStreamMessage = async () => {
   const response = await sendStreamChatMessage(chatHistory.value, {
     model: API_MODEL,
     temperature: 0.7, //思维活跃度，取值范围通常在 0 到 2 之间，默认值通常为 1, 保守到跳跃
-    maxTokens: 450, // 限制模型生成的回答（Completion）最长能有多少个 Token
+    max_tokens: 450, // 限制模型生成的回答（Completion）最长能有多少个 Token
+    reasoning_split: true,
     onReasoning: (chunk) => {
       // Update reasoning content in real-time
-      console.log(chunk);
+      console.log('onReasoning: '+ chunk);
       messageRef.reasoning = (messageRef.reasoning || '') + chunk
       scrollToBottom()
     },
     onChunk: (chunk) => {
       // Update answer content in real-time
-      console.log(chunk);
+      console.log('content: '+ chunk);
       messageRef.content += chunk
       scrollToBottom()
     },

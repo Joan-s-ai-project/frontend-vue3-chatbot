@@ -88,9 +88,10 @@ export async function sendChatMessage(
 }
 
 export interface StreamChatOptions {
-  model?: string
+  model: string
   temperature?: number
-  maxTokens?: number
+  max_tokens?: number
+  reasoning_split?: boolean
   onChunk?: (chunk: string) => void      // 答案内容回调
   onReasoning?: (chunk: string) => void  // 思考内容回调（GLM-5 reasoning_content）
   onError?: (error: string) => void
@@ -103,18 +104,19 @@ export interface StreamChatOptions {
  */
 export async function sendStreamChatMessage(
   messages: ChatMessage[],
-  options: StreamChatOptions = {}
+  options: StreamChatOptions
 ): Promise<ChatResponse | ChatError> {
-  const { onChunk, onReasoning, onError, onComplete, ...modelOptions } = options
+  const { onChunk, onReasoning, onError, onComplete, model, temperature, max_tokens, reasoning_split } = options
 
   try {
     const stream = await openai.chat.completions.create({
-      model: modelOptions.model || 'gpt-4o-mini',
       messages,
-      // temperature: modelOptions.temperature ?? 0.7,
-      // max_tokens: modelOptions.maxTokens ?? 1000,
-      stream: true
-    })
+      stream: true,
+      model,
+      temperature,
+      max_tokens,
+      reasoning_split
+    } as Parameters<typeof openai.chat.completions.create>[0]) as AsyncIterable<import('openai/resources/chat/completions').ChatCompletionChunk>
 
     let fullContent = ''
     let fullReasoning = ''
