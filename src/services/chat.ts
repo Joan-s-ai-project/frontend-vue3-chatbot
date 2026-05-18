@@ -1,17 +1,40 @@
 /**
  * Chat API Service
- * 封装与后端 /api/chat 和 /api/chat/stream 的通信
+ * 只负责发起 HTTP 请求，返回原始 Response
  */
 
-// 每次页面加载生成一个新的 sessionId
-export const sessionId = crypto.randomUUID()
+// 兼容非安全上下文（通过 IP/HTTP 访问时 crypto.randomUUID 不可用）
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  // fallback: 使用 crypto.getRandomValues 手动生成 UUID v4
+  const bytes = new Uint8Array(16)
+  crypto.getRandomValues(bytes)
+  bytes[6] = (bytes[6] & 0x0f) | 0x40 // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80 // variant 1
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
 
-console.log('[Chat] sessionId:', sessionId)
+// 从 URL 路径中提取 UUID，如 /xxxx-xxxx-xxxx 则使用该 UUID 作为 sessionId
+function getSessionIdFromUrl(): string | null {
+  const path = window.location.pathname.replace(/^\//, '').replace(/\/$/, '')
+  // UUID v4 格式
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(path) ? path : null
+}
+
+// 如果 URL 中有 UUID 则复用，否则生成新的
+export const sessionId = getSessionIdFromUrl() || generateUUID()
+export const isHistorySession = !!getSessionIdFromUrl()
+
+console.log('[Chat] sessionId:', sessionId, isHistorySession ? '(from URL)' : '(new)')
 
 /**
  * 非流式聊天
  */
-export async function sendMessage(message: string) {
+export async function fetchChat(message: string): Promise<Response> {
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -23,68 +46,46 @@ export async function sendMessage(message: string) {
     throw new Error(err.error?.message || '请求失败')
   }
 
-  return res.json()
-}
-
-/**
- * SSE 流式聊天回调类型
- */
-export interface StreamCallbacks {
-  onReasoning?: (text: string) => void
-  onContent?: (text: string) => void
-  onDone?: (usage: any) => void
-  onError?: (message: string) => void
+  return res
 }
 
 /**
  * 流式聊天（SSE）
  */
-export async function sendStreamMessage(message: string, callbacks: StreamCallbacks) {
-  const res = await fetch('/api/chat/stream', {
+export async function fetchChatStream(message: string, images?: string[]): Promise<Response> {
+  const body: any = { sessionId, message, temperature: 0.1 }
+  if (images && images.length > 0) {
+    body.images = images
+  }
+
+  const res = await fetch('/api/v1/chat/completion', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId, message })
+    body: JSON.stringify(body)
   })
 
   if (!res.ok) {
-    const err = await res.json()
-    throw new Error(err.error?.message || '请求失败')
-  }
-
-  const reader = res.body!.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-
-    buffer += decoder.decode(value, { stream: true })
-
-    // 按 \n\n 分割 SSE 事件
-    const parts = buffer.split('\n\n')
-    buffer = parts.pop() || ''  // 最后一段可能不完整，留到下次
-
-    for (const part of parts) {
-      const line = part.trim()
-      if (!line.startsWith('data: ')) continue
-
-      const data = JSON.parse(line.slice(6))
-
-      switch (data.type) {
-        case 'reasoning':
-          callbacks.onReasoning?.(data.content)
-          break
-        case 'content':
-          callbacks.onContent?.(data.content)
-          break
-        case 'done':
-          callbacks.onDone?.(data.usage)
-          break
-        case 'error':
-          callbacks.onError?.(data.message)
-          break
-      }
+    let errMsg = `请求失败 (${res.status})`
+    try {
+      const err = await res.json()
+      errMsg = err.error?.message || errMsg
+    } catch {
+      // 无法解析 JSON，使用默认错误信息
     }
+    throw new Error(errMsg)
   }
+
+  return res
+}
+
+
+/**
+ * 获取历史会话消息
+ */
+export async function fetchHistory(id: string): Promise<any[]> {
+  const res = await fetch(`/api/history/${id}`)
+  if (!res.ok) {
+    throw new Error('获取历史记录失败')
+  }
+  return res.json()
 }

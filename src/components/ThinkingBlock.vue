@@ -11,16 +11,19 @@ const expanded = ref(false)
 
 const renderedContent = computed(() => {
   if (!props.content) return ''
-  return marked.parse(props.content) as string
+  // 流式进行中时，在末尾补两个换行，让 marked 把未闭合的块级语法强制结束
+  // 避免不完整的 markdown（如未闭合的列表、加粗）导致后续内容被吞掉
+  const raw = props.loading ? props.content + '\n\n' : props.content
+  return marked.parse(raw) as string
 })
 </script>
 
 <template>
   <div class="thinking-block" :class="{ loading }">
     <div class="thinking-header" @click="expanded = !expanded">
-      <span class="icon">{{ loading ? '⏳' : '💭' }}</span>
-      <span class="label">{{ loading ? '思考中...' : '思考过程' }}</span>
-      <span class="arrow" :class="{ open: expanded }">›</span>
+      <span class="icon">{{ loading ? '◻' : '◼' }}</span>
+      <span class="label">{{ loading ? 'THINKING...' : 'THINKING' }}</span>
+      <span class="arrow" :class="{ open: expanded }">▶</span>
     </div>
     <transition name="slide">
       <div v-if="expanded" class="thinking-content" v-html="renderedContent">
@@ -31,55 +34,56 @@ const renderedContent = computed(() => {
 
 <style scoped>
 .thinking-block {
-  border-radius: 10px;
   overflow: hidden;
-  font-size: 0.82rem;
-  border: 1px solid #e8e8e8;
+  font-size: 0.8rem;
+  border: 3px solid #000;
   width: 100%;
 }
 
 .thinking-block.loading {
-  border-color: #d4daff;
-  background: #f5f7ff;
+  border-style: dashed;
 }
 
 .thinking-header {
   display: flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.35rem 0.6rem;
+  gap: 0.4rem;
+  padding: 0.4rem 0.6rem;
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s;
+  background: #f0f0f0;
+  transition: all 0.1s;
 }
 
 .thinking-header:hover {
-  background: rgba(0,0,0,0.03);
+  background: #000;
+  color: #fff;
 }
 
 .icon {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
 }
 
 .label {
-  color: #888;
+  color: inherit;
   flex: 1;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .loading .label {
-  color: #667eea;
-  animation: pulse 1.5s infinite;
+  animation: blink 1s step-end infinite;
 }
 
-@keyframes pulse {
+@keyframes blink {
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  50% { opacity: 0; }
 }
 
 .arrow {
-  color: #aaa;
-  font-size: 1rem;
-  transition: transform 0.2s;
+  font-size: 0.6rem;
+  transition: transform 0.1s;
 }
 
 .arrow.open {
@@ -88,10 +92,10 @@ const renderedContent = computed(() => {
 
 .thinking-content {
   padding: 0.5rem 0.7rem;
-  color: #777;
+  color: #333;
   line-height: 1.55;
-  border-top: 1px solid #eee;
-  background: #fafbff;
+  border-top: 3px solid #000;
+  background: #fafafa;
 }
 
 .thinking-content :deep(p) {
@@ -111,7 +115,7 @@ const renderedContent = computed(() => {
 /* 展开动画 */
 .slide-enter-active,
 .slide-leave-active {
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
 }
 
 .slide-enter-from,

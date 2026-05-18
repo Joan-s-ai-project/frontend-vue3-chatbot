@@ -24,3 +24,22 @@ body {
   width: 100%;
   height: 100vh;
 }
+
+/* 隐藏浏览器扩展注入的圆点元素（如 AI 助手插件） */
+[class*="rounded-full"][class*="border-transparent"],
+[class*="rounded-full"][class*="items-center"][class*="gap-"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
+  position: absolute !important;
+}
+
+/* 通用：隐藏所有 Tailwind 风格的扩展注入元素 */
+[class*="flex"][class*="items-center"][class*="rounded-full"][class*="px-"],
+[class*="inline-flex"][class*="rounded-full"] {
+  display: none !important;
+}
