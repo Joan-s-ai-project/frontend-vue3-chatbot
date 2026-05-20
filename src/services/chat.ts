@@ -52,10 +52,13 @@ export async function fetchChat(message: string): Promise<Response> {
 /**
  * 流式聊天（SSE）
  */
-export async function fetchChatStream(message: string, images?: string[]): Promise<Response> {
+export async function fetchChatStream(message: string, images?: string[], model?: string): Promise<Response> {
   const body: any = { sessionId, message, temperature: 0.1 }
   if (images && images.length > 0) {
     body.images = images
+  }
+  if (model) {
+    body.model = model
   }
 
   const res = await fetch('/api/v1/chat/completion', {
@@ -76,6 +79,15 @@ export async function fetchChatStream(message: string, images?: string[]): Promi
   }
 
   return res
+}
+
+/**
+ * 获取可用模型列表
+ */
+export async function fetchModels(): Promise<{ id: string; label: string; provider: string }[]> {
+  const res = await fetch('/api/models')
+  if (!res.ok) throw new Error('获取模型列表失败')
+  return res.json()
 }
 
 

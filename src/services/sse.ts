@@ -9,7 +9,7 @@ export interface StreamCallbacks {
   onSearching?: (query: string) => void
   onToolResult?: (data: { name: string; query: string; result: string }) => void
   onDone?: (data: { usage?: any; cost?: any; model?: string }) => void
-  onError?: (message: string) => void
+  onError?: (message: string, code?: number | string) => void
 }
 
 /**
@@ -66,7 +66,7 @@ export async function consumeSseStream(res: Response, callbacks: StreamCallbacks
           callbacks.onDone?.({ usage: data.usage, cost: data.cost, model: data.model })
           break
         case 'error':
-          callbacks.onError?.(data.message)
+          callbacks.onError?.(data.message, data.code)
           break
       }
     }

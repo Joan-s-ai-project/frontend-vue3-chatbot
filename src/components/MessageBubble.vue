@@ -86,7 +86,7 @@ const renderedContent = computed(() => {
         <span>↑{{ usage?.prompt_tokens?.toLocaleString() }} ↓{{ usage?.completion_tokens?.toLocaleString() }} tokens</span>
         <span v-if="usage?.cached_tokens" class="cost-cache">缓存 {{ usage.cached_tokens.toLocaleString() }}</span>
         <span class="cost-sep">|</span>
-        <span class="cost-total">¥{{ cost.total_cost.toFixed(4) }}</span>
+        <span class="cost-total">{{ cost.currency === 'USD' ? '$' : '¥' }}{{ cost.total_cost.toFixed(4) }}</span>
       </div>
     </div>
   </div>

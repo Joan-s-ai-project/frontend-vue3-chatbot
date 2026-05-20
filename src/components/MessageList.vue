@@ -39,12 +39,26 @@ const props = defineProps<{
 
 const container = ref<HTMLElement | null>(null)
 const isAutoScrollEnabled = ref(true)
+let isProgrammaticScroll = false  // 标记是程序触发的滚动，不应影响 isAutoScrollEnabled
 
 function handleScroll() {
   if (!container.value) return
+  if (isProgrammaticScroll) return  // 忽略程序触发的滚动事件
   const { scrollTop, scrollHeight, clientHeight } = container.value
   const isAtBottom = scrollHeight - scrollTop - clientHeight <= 10
+  // 只有用户主动向上滚动时才关闭自动滚动；到达底部时重新开启
   isAutoScrollEnabled.value = isAtBottom
+}
+
+async function scrollToBottom() {
+  if (!container.value) return
+  isProgrammaticScroll = true
+  container.value.scrollTop = container.value.scrollHeight
+  await nextTick()
+  // 等下一帧再关闭标志，确保 scroll 事件已经触发完毕
+  requestAnimationFrame(() => {
+    isProgrammaticScroll = false
+  })
 }
 
 onMounted(() => {
@@ -60,9 +74,7 @@ watch(
   async () => {
     isAutoScrollEnabled.value = true
     await nextTick()
-    if (container.value) {
-      container.value.scrollTop = container.value.scrollHeight
-    }
+    scrollToBottom()
   }
 )
 
@@ -71,11 +83,25 @@ watch(
   async () => {
     if (!isAutoScrollEnabled.value) return
     await nextTick()
-    if (container.value) {
-      container.value.scrollTop = container.value.scrollHeight
-    }
+    scrollToBottom()
   },
   { deep: true }
+)
+
+// 最后一条消息从空内容变为有内容时（如错误写入），强制滚到底
+// 解决用户滚动后 isAutoScrollEnabled=false 导致错误消息不可见的问题
+watch(
+  () => {
+    const last = props.messages[props.messages.length - 1]
+    return last && !last.isUser ? last.content : ''
+  },
+  async (newVal, oldVal) => {
+    if (!oldVal && newVal) {
+      isAutoScrollEnabled.value = true
+      await nextTick()
+      scrollToBottom()
+    }
+  }
 )
 </script>
 

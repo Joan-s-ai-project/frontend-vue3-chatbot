@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { sendStreamMessage, isHistorySession, sessionId, loadHistory } from '@/services'
+import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadModels } from '@/services'
 import ChatInput from '@/components/ChatInput.vue'
 import MessageList from '@/components/MessageList.vue'
 import type { Message } from '@/components/MessageList.vue'
 
 const messages = ref<Message[]>([])
 const loading = ref(false)
+
+// ── 模型选择 ──────────────────────────────────────────────────────────
+interface ModelOption { id: string; label: string; provider: string }
+const models = ref<ModelOption[]>([])
+const selectedModel = ref('')
 
 /**
  * 将后端 JSONL 格式的历史消息映射为前端 Message 格式
@@ -18,6 +23,17 @@ function mapHistoryToMessages(history: any[]): Message[] {
   for (const item of history) {
     // 跳过 system 消息
     if (item.role === 'system') continue
+
+    // done 事件：把 usage/cost/model 回填到上一条 assistant 消息
+    if (item.type === 'done') {
+      const lastAi = [...result].reverse().find(m => !m.isUser)
+      if (lastAi) {
+        if (item.cost)  lastAi.cost  = item.cost
+        if (item.usage) lastAi.usage = item.usage
+        if (item.model) lastAi.model = item.model
+      }
+      continue
+    }
 
     const msg: Message = {
       id: idCounter++,
@@ -50,6 +66,15 @@ function mapHistoryToMessages(history: any[]): Message[] {
 }
 
 onMounted(async () => {
+  // 加载可用模型列表
+  try {
+    const list = await loadModels()
+    models.value = list
+    if (list.length > 0) selectedModel.value = list[0].id
+  } catch (err: any) {
+    console.error('[App] 加载模型列表失败:', err.message)
+  }
+
   if (isHistorySession) {
     try {
       const history = await loadHistory(sessionId)
@@ -106,12 +131,12 @@ async function handleSend(text: string, images: string[] = []) {
         aiMsg.model = data.model
         loading.value = false
       },
-      onError(msg) {
-        aiMsg.content = `❌ ${msg}`
+      onError(msg, code) {
+        aiMsg.content = code ? `❌ [${code}] ${msg}` : `❌ ${msg}`
         aiMsg.reasoningLoading = false
         loading.value = false
       }
-    })
+    }, selectedModel.value || undefined)
   } catch (err: any) {
     aiMsg.content = `❌ ${err.message}`
     aiMsg.reasoningLoading = false
@@ -129,7 +154,10 @@ async function handleSend(text: string, images: string[] = []) {
         <span class="logo">■</span>
         <h1>AI CHAT</h1>
       </div>
-      <span class="header-badge">MINIMAX-M2.5</span>
+      <select v-if="models.length > 0" v-model="selectedModel" class="model-select">
+        <option v-for="m in models" :key="m.id" :value="m.id">{{ m.label }}</option>
+      </select>
+      <span v-else class="header-badge">LOADING...</span>
     </header>
 
     <!-- 空状态欢迎页 -->
@@ -216,6 +244,31 @@ body {
   border: none;
   letter-spacing: 0.1em;
   font-family: 'Courier New', monospace;
+}
+
+.model-select {
+  font-size: 0.7rem;
+  font-weight: 700;
+  font-family: 'Space Mono', 'Courier New', monospace;
+  background: #fff;
+  color: #000;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+  outline: none;
+  text-transform: uppercase;
+  appearance: none;
+  -webkit-appearance: none;
+  /* 自定义下拉箭头 */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23000'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.4rem center;
+  padding-right: 1.4rem;
+}
+
+.model-select:hover {
+  background-color: #e0e0e0;
 }
 
 /* 欢迎页 */
