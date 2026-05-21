@@ -2,12 +2,12 @@
 import { computed } from 'vue'
 import { marked } from 'marked'
 import ThinkingBlock from './ThinkingBlock.vue'
+import type { ContentBlock } from './MessageList.vue'
 
 const props = defineProps<{
   content: string
   isUser: boolean
-  reasoning?: string
-  reasoningLoading?: boolean
+  blocks?: ContentBlock[]
   images?: string[]
   cost?: {
     input_cost: number
@@ -23,21 +23,17 @@ const props = defineProps<{
     cached_tokens: number
   }
   model?: string
-  toolCalls?: { name: string; query?: string; command?: string; result?: string; loading?: boolean }[]
 }>()
 
-marked.setOptions({
-  breaks: true,
-})
+marked.setOptions({ breaks: true })
 
 const renderedContent = computed(() => {
   if (!props.content) return ''
-  // reasoningLoading 为 true 说明 AI 还在流式输出，末尾补换行防止未闭合语法截断内容
-  const raw = props.reasoningLoading ? props.content + '\n\n' : props.content
+  const isStreaming = props.blocks?.some(b => b.kind === 'thinking' && b.loading) ?? false
+  const raw = isStreaming ? props.content + '\n\n' : props.content
   return marked.parse(raw) as string
 })
 
-// 用户消息：纯文本，不走 Markdown，防止 HTML 标签被渲染
 const userContent = computed(() => props.content ?? '')
 </script>
 
@@ -49,20 +45,24 @@ const userContent = computed(() => props.content ?? '')
       <div class="msg-images" v-if="isUser && images && images.length">
         <img v-for="(img, i) in images" :key="i" :src="img" alt="用户图片" class="msg-image" />
       </div>
-      <ThinkingBlock
-        v-if="!isUser && (reasoning || reasoningLoading)"
-        :content="reasoning || ''"
-        :loading="reasoningLoading"
-      />
-      <!-- Tool 调用状态 -->
-      <div class="tool-calls" v-if="!isUser && toolCalls && toolCalls.length">
-        <details class="tool-call" v-for="(tc, i) in toolCalls" :key="i" :class="{ loading: tc.loading }">
-
-          <!-- search_web -->
-          <template v-if="tc.name === 'search_web'">
+      <!-- 有序内容块：thinking 和 tool 按实际产生顺序交替渲染 -->
+      <template v-if="!isUser && blocks && blocks.length">
+        <template v-for="(block, idx) in blocks" :key="idx">
+          <!-- thinking 块 -->
+          <ThinkingBlock
+            v-if="block.kind === 'thinking'"
+            :content="block.content"
+            :loading="block.loading"
+          />
+          <!-- search_web tool -->
+          <details
+            v-else-if="block.kind === 'tool' && block.name === 'search_web'"
+            class="tool-call"
+            :class="{ loading: block.loading }"
+          >
             <summary class="tool-header">
               <span class="tool-icon-wrap">
-                <svg v-if="tc.loading" class="tool-spinner" viewBox="0 0 16 16" fill="none">
+                <svg v-if="block.loading" class="tool-spinner" viewBox="0 0 16 16" fill="none">
                   <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
                 </svg>
                 <svg v-else class="tool-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
@@ -74,30 +74,34 @@ const userContent = computed(() => props.content ?? '')
                 </svg>
               </span>
               <span class="tool-label">Web search:</span>
-              <span class="tool-query">{{ tc.query }}</span>
-              <span class="tool-expand-hint">{{ tc.loading ? '' : '▶' }}</span>
+              <span class="tool-query">{{ block.query }}</span>
+              <span class="tool-expand-hint">{{ block.loading ? '' : '▶' }}</span>
             </summary>
-            <div class="tool-result-text" v-if="tc.result" v-html="marked.parse(tc.result)"></div>
-          </template>
-
-          <!-- run_bash -->
-          <template v-else-if="tc.name === 'run_bash'">
+            <div class="tool-result-text" v-if="block.result" v-html="marked.parse(block.result)"></div>
+          </details>
+          <!-- run_bash tool -->
+          <details
+            v-else-if="block.kind === 'tool' && block.name === 'run_bash'"
+            class="tool-call"
+            :class="{ loading: block.loading }"
+          >
             <summary class="tool-header tool-header--bash">
               <span class="tool-icon-wrap">
-                <svg v-if="tc.loading" class="tool-spinner tool-spinner--bash" viewBox="0 0 16 16" fill="none">
+                <svg v-if="block.loading" class="tool-spinner tool-spinner--bash" viewBox="0 0 16 16" fill="none">
                   <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
                 </svg>
                 <span v-else class="tool-bash-icon">$</span>
               </span>
               <span class="tool-label tool-label--bash">Bash:</span>
-              <span class="tool-query tool-query--bash">{{ tc.command }}</span>
-              <span class="tool-expand-hint">{{ tc.loading ? '' : '▶' }}</span>
+              <span class="tool-query tool-query--bash">{{ block.command }}</span>
+              <span class="tool-expand-hint">{{ block.loading ? '' : '▶' }}</span>
             </summary>
-            <div class="tool-result-text tool-result-bash" v-if="tc.result" v-html="marked.parse(tc.result)"></div>
-          </template>
-
-        </details>
-      </div>
+            <div class="tool-result-text tool-result-bash" v-if="block.result" v-html="marked.parse(block.result)"></div>
+          </details>
+        </template>
+      </template>
+      <!-- Tool 调用状态 -->
+      <div class="tool-calls" v-if="false"><!-- legacy slot, now rendered via blocks --></div>
       <!-- 用户消息：纯文本，不渲染 HTML/Markdown，防止注入 -->
       <div
         v-if="content && isUser"

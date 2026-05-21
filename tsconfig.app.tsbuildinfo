@@ -1,1 +1,1 @@
-{"root":["./src/main.ts","./src/vite-env.d.ts","./src/services/openai.ts","./src/app.vue"],"version":"5.7.3"}
+{"root":["./src/main.ts","./src/vite-env.d.ts","./src/services/chat.ts","./src/services/index.ts","./src/services/sse.ts","./src/app.vue","./src/components/chatinput.vue","./src/components/messagebubble.vue","./src/components/messagelist.vue","./src/components/thinkingblock.vue"],"version":"5.7.3"}

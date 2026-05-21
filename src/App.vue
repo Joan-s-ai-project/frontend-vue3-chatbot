@@ -70,52 +70,106 @@ async function handleDeleteSession(id: string, event: Event) {
 
 /**
  * 将后端 JSONL 格式的历史消息映射为前端 Message 格式
+ * 同一轮对话（一个 user 问题对应的所有 assistant+tool 轮次）合并为一个 Message
  */
 function mapHistoryToMessages(history: any[]): Message[] {
   const result: Message[] = []
   let idCounter = 0
+  // 当前正在构建的 AI 消息（跨多轮 assistant/tool 合并）
+  let currentAiMsg: Message | null = null
+
+  function flushAiMsg() {
+    if (currentAiMsg) {
+      result.push(currentAiMsg)
+      currentAiMsg = null
+    }
+  }
 
   for (const item of history) {
-    // 跳过 system 消息
     if (item.role === 'system') continue
 
-    // done 事件：把 usage/cost/model 回填到上一条 assistant 消息
+    // done 事件：把 usage/cost/model 回填到当前 AI 消息
     if (item.type === 'done') {
-      const lastAi = [...result].reverse().find(m => !m.isUser)
-      if (lastAi) {
-        if (item.cost)  lastAi.cost  = item.cost
-        if (item.usage) lastAi.usage = item.usage
-        if (item.model) lastAi.model = item.model
+      if (currentAiMsg) {
+        if (item.cost)  currentAiMsg.cost  = item.cost
+        if (item.usage) currentAiMsg.usage = item.usage
+        if (item.model) currentAiMsg.model = item.model
+        flushAiMsg()
       }
       continue
     }
 
-    const msg: Message = {
-      id: idCounter++,
-      content: item.content || '',
-      isUser: item.role === 'user',
+    // user 消息：先把上一条 AI 消息 flush，再新建 user 消息
+    if (item.role === 'user') {
+      flushAiMsg()
+      result.push({
+        id: idCounter++,
+        content: item.content || '',
+        isUser: true,
+      })
+      continue
     }
 
-    // assistant 消息可能有 reasoning、model、toolActivities
+    // assistant 消息：合并进当前 AI 消息（或新建）
     if (item.role === 'assistant') {
+      if (!currentAiMsg) {
+        currentAiMsg = {
+          id: idCounter++,
+          content: '',
+          isUser: false,
+          blocks: [],
+        }
+      }
+
+      // 追加 reasoning 为新的 thinking 块
       if (item.reasoning) {
-        msg.reasoning = item.reasoning
+        currentAiMsg.blocks!.push({ kind: 'thinking', content: item.reasoning, loading: false })
       }
-      if (item.model) {
-        msg.model = item.model
+
+      // 追加 content（最终回答）
+      if (item.content) {
+        currentAiMsg.content += item.content
       }
-      if (item.toolActivities && item.toolActivities.length > 0) {
-        msg.toolCalls = item.toolActivities.map((ta: any) => ({
-          name: ta.toolName,
-          query: ta.input?.query || undefined,
-          command: ta.input?.command || undefined,
-          result: ta.result || '',
-          loading: false,
-        }))
+
+      // 追加 tool_calls 为 tool 块
+      if (item.tool_calls && item.tool_calls.length > 0) {
+        for (const tc of item.tool_calls) {
+          const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {}
+          currentAiMsg.blocks!.push({
+            kind: 'tool',
+            name: tc.function?.name || '',
+            query: args.query || undefined,
+            command: args.command || undefined,
+            result: '',
+            loading: false,
+          })
+        }
       }
+
+      // model 取最后一条有值的
+      if (item.model) currentAiMsg.model = item.model
+      continue
     }
 
-    result.push(msg)
+    // tool 消息：回填到 blocks 里第一个 result 为空的同名 tool 块
+    if (item.role === 'tool' && currentAiMsg?.blocks) {
+      const toolBlock = currentAiMsg.blocks.find(
+        b => b.kind === 'tool' && b.name === item.name && (b.result === '' || b.result === undefined)
+      )
+      if (toolBlock && toolBlock.kind === 'tool') {
+        toolBlock.result = item.content || ''
+        toolBlock.loading = false
+      }
+      continue
+    }
+  }
+
+  // 文件末尾没有 done 事件时也要 flush
+  flushAiMsg()
+
+  // 清理空的 blocks 数组，避免渲染空占位
+  for (const msg of result) {
+    if (!msg.isUser && msg.blocks?.length === 0) delete msg.blocks
   }
 
   return result
@@ -169,8 +223,8 @@ async function handleSend(text: string, images: string[] = []) {
     id: Date.now() + 1,
     content: '',
     isUser: false,
-    reasoning: '',
-    reasoningLoading: true
+    blocks: [],
+    thinkingBlocks: [],  // 保留供 onReasoning 判断用
   })
   const aiMsg = messages.value[messages.value.length - 1]
   loading.value = true
@@ -178,36 +232,51 @@ async function handleSend(text: string, images: string[] = []) {
   try {
     await sendStreamMessage(text, images, {
       onReasoning(chunk) {
-        aiMsg.reasoning += chunk
+        // 找最后一个 thinking 块，如果在 loading 中就累加，否则新建
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.content += chunk
+        } else {
+          aiMsg.blocks!.push({ kind: 'thinking', content: chunk, loading: true })
+        }
       },
       onContent(chunk) {
-        aiMsg.reasoningLoading = false
+        // 关闭最后一个 thinking 块的 loading
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.loading = false
+        }
         aiMsg.content += chunk
       },
       onSearching(query) {
-        if (!aiMsg.toolCalls) aiMsg.toolCalls = []
-        aiMsg.toolCalls.push({ name: 'search_web', query, loading: true })
+        // 关闭最后一个 thinking 块的 loading
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.loading = false
+        }
+        aiMsg.blocks!.push({ kind: 'tool', name: 'search_web', query, loading: true })
       },
       onBashRunning(command) {
-        if (!aiMsg.toolCalls) aiMsg.toolCalls = []
-        aiMsg.toolCalls.push({ name: 'run_bash', command, loading: true })
+        // 关闭最后一个 thinking 块的 loading
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.loading = false
+        }
+        aiMsg.blocks!.push({ kind: 'tool', name: 'run_bash', command, loading: true })
       },
       onToolResult(data) {
-        if (!aiMsg.toolCalls) return
-        // search_web 用 query 匹配，run_bash 用 command 匹配
-        const tc = aiMsg.toolCalls.find(t => {
-          if (t.loading === false) return false
-          if (data.name === 'search_web') return t.name === 'search_web' && t.query === data.query
-          if (data.name === 'run_bash') return t.name === 'run_bash' && t.command === data.command
-          return false
-        })
-        if (tc) {
-          tc.result = data.result
-          tc.loading = false
+        // 找最后一个同名且 loading 的 tool 块
+        const toolBlock = [...aiMsg.blocks!].reverse().find(
+          b => b.kind === 'tool' && b.name === data.name && b.loading
+        )
+        if (toolBlock && toolBlock.kind === 'tool') {
+          toolBlock.result = data.result
+          toolBlock.loading = false
         }
       },
       onDone(data) {
-        aiMsg.reasoningLoading = false
+        // 关闭所有还在 loading 的块
+        aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
         aiMsg.cost = data.cost
         aiMsg.usage = data.usage
         aiMsg.model = data.model
@@ -215,13 +284,13 @@ async function handleSend(text: string, images: string[] = []) {
       },
       onError(msg, code) {
         aiMsg.content = code ? `❌ [${code}] ${msg}` : `❌ ${msg}`
-        aiMsg.reasoningLoading = false
+        aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
         loading.value = false
       }
     }, selectedModel.value || undefined)
   } catch (err: any) {
     aiMsg.content = `❌ ${err.message}`
-    aiMsg.reasoningLoading = false
+    aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
   } finally {
     loading.value = false
   }

@@ -4,17 +4,28 @@ import MessageBubble from './MessageBubble.vue'
 
 export interface ToolCall {
   name: string
-  query: string
+  query?: string
+  command?: string
   result?: string
   loading?: boolean
 }
+
+export interface ThinkingBlock {
+  content: string
+  loading: boolean
+}
+
+/** 有序的内容块，按实际产生顺序排列 */
+export type ContentBlock =
+  | { kind: 'thinking'; content: string; loading: boolean }
+  | { kind: 'tool'; name: string; query?: string; command?: string; result?: string; loading?: boolean }
 
 export interface Message {
   id: number
   content: string
   isUser: boolean
-  reasoning?: string
-  reasoningLoading?: boolean
+  /** 有序内容块（thinking + tool 交替，按实际顺序） */
+  blocks?: ContentBlock[]
   images?: string[]
   cost?: {
     input_cost: number
@@ -30,6 +41,8 @@ export interface Message {
     cached_tokens: number
   }
   model?: string
+  // 以下两个字段保留，供流式写入时使用，渲染时统一走 blocks
+  thinkingBlocks?: ThinkingBlock[]
   toolCalls?: ToolCall[]
 }
 
@@ -112,12 +125,10 @@ watch(
       :key="msg.id"
       :content="msg.content"
       :is-user="msg.isUser"
-      :reasoning="msg.reasoning"
-      :reasoning-loading="msg.reasoningLoading"
+      :blocks="msg.blocks"
       :cost="msg.cost"
       :usage="msg.usage"
       :model="msg.model"
-      :tool-calls="msg.toolCalls"
       :images="msg.images"
     />
   </div>
