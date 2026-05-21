@@ -1,6 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadModels } from '@/services'
+import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadHistoryList, loadModels } from '@/services'
+
+// 新会话：第一次发消息后把 sessionId 写入 URL，方便分享/定位
+function syncSessionIdToUrl() {
+  if (isHistorySession) return  // 已经是历史会话，URL 本来就有
+  const current = window.location.pathname.replace(/^\/|\/$/g, '')
+  if (current !== sessionId) {
+    window.history.replaceState(null, '', `/${sessionId}`)
+  }
+}
 import ChatInput from '@/components/ChatInput.vue'
 import MessageList from '@/components/MessageList.vue'
 import type { Message } from '@/components/MessageList.vue'
@@ -12,6 +21,27 @@ const loading = ref(false)
 interface ModelOption { id: string; label: string; provider: string }
 const models = ref<ModelOption[]>([])
 const selectedModel = ref('')
+
+// ── 历史会话列表 ──────────────────────────────────────────────────────
+interface SessionItem { id: string; title: string; createdAt: number; messageCount: number }
+const sessionList = ref<SessionItem[]>([])
+const sidebarOpen = ref(false)
+
+async function refreshSessionList() {
+  try {
+    sessionList.value = await loadHistoryList()
+  } catch (err: any) {
+    console.error('[App] 加载会话列表失败:', err.message)
+  }
+}
+
+function openSession(id: string) {
+  window.location.href = `/${id}`
+}
+
+function newSession() {
+  window.location.href = '/'
+}
 
 /**
  * 将后端 JSONL 格式的历史消息映射为前端 Message 格式
@@ -52,7 +82,8 @@ function mapHistoryToMessages(history: any[]): Message[] {
       if (item.toolActivities && item.toolActivities.length > 0) {
         msg.toolCalls = item.toolActivities.map((ta: any) => ({
           name: ta.toolName,
-          query: ta.input?.query || '',
+          query: ta.input?.query || undefined,
+          command: ta.input?.command || undefined,
           result: ta.result || '',
           loading: false,
         }))
@@ -75,10 +106,23 @@ onMounted(async () => {
     console.error('[App] 加载模型列表失败:', err.message)
   }
 
+  // 加载历史会话列表
+  await refreshSessionList()
+
   if (isHistorySession) {
     try {
       const history = await loadHistory(sessionId)
       messages.value = mapHistoryToMessages(history)
+
+      // 从历史数据找最后一条有 model 的 assistant 消息，恢复模型选择
+      const lastModelEntry = [...history].reverse().find(
+        (item: any) => item.role === 'assistant' && item.model
+      )
+      if (lastModelEntry?.model) {
+        // 等模型列表加载完再匹配，如果列表里有就用，没有就保持默认
+        const matched = models.value.find(m => m.id === lastModelEntry.model)
+        if (matched) selectedModel.value = matched.id
+      }
     } catch (err: any) {
       console.error('[App] 加载历史失败:', err.message)
     }
@@ -86,6 +130,9 @@ onMounted(async () => {
 })
 
 async function handleSend(text: string, images: string[] = []) {
+  // 新会话第一次发消息时，把 sessionId 同步到 URL
+  syncSessionIdToUrl()
+
   messages.value.push({
     id: Date.now(),
     content: text,
@@ -116,9 +163,19 @@ async function handleSend(text: string, images: string[] = []) {
         if (!aiMsg.toolCalls) aiMsg.toolCalls = []
         aiMsg.toolCalls.push({ name: 'search_web', query, loading: true })
       },
+      onBashRunning(command) {
+        if (!aiMsg.toolCalls) aiMsg.toolCalls = []
+        aiMsg.toolCalls.push({ name: 'run_bash', command, loading: true })
+      },
       onToolResult(data) {
         if (!aiMsg.toolCalls) return
-        const tc = aiMsg.toolCalls.find(t => t.query === data.query && t.loading)
+        // search_web 用 query 匹配，run_bash 用 command 匹配
+        const tc = aiMsg.toolCalls.find(t => {
+          if (t.loading === false) return false
+          if (data.name === 'search_web') return t.name === 'search_web' && t.query === data.query
+          if (data.name === 'run_bash') return t.name === 'run_bash' && t.command === data.command
+          return false
+        })
         if (tc) {
           tc.result = data.result
           tc.loading = false
@@ -148,11 +205,36 @@ async function handleSend(text: string, images: string[] = []) {
 
 <template>
   <div id="app">
+    <!-- 侧边栏遮罩 -->
+    <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false" />
+
+    <!-- 侧边栏 -->
+    <aside :class="['sidebar', { 'sidebar--open': sidebarOpen }]">
+      <div class="sidebar-header">
+        <span class="sidebar-title">SESSIONS</span>
+        <button class="sidebar-close" @click="sidebarOpen = false">✕</button>
+      </div>
+      <button class="new-session-btn" @click="newSession">+ NEW SESSION</button>
+      <ul class="session-list">
+        <li
+          v-for="s in sessionList"
+          :key="s.id"
+          :class="['session-item', { 'session-item--active': s.id === sessionId }]"
+          @click="openSession(s.id)"
+        >
+          <div class="session-title">{{ s.title || '新对话' }}</div>
+        </li>
+      </ul>
+    </aside>
+
     <!-- 顶栏 -->
     <header class="header">
-      <div class="header-title">
-        <span class="logo">■</span>
-        <h1>AI CHAT</h1>
+      <div class="header-left">
+        <button class="menu-btn" @click="sidebarOpen = !sidebarOpen" title="会话列表">☰</button>
+        <div class="header-title">
+          <span class="logo">■</span>
+          <h1>AI CHAT</h1>
+        </div>
       </div>
       <select v-if="models.length > 0" v-model="selectedModel" class="model-select">
         <option v-for="m in models" :key="m.id" :value="m.id">{{ m.label }}</option>
@@ -212,10 +294,32 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.8rem 1.2rem;
+  padding: 0 1.2rem;
+  height: 55px;
+  flex-shrink: 0;
   background: #000;
   color: #fff;
   border-bottom: 4px solid #000;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.menu-btn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.3rem;
+  cursor: pointer;
+  padding: 0 0.2rem;
+  line-height: 1;
+}
+
+.menu-btn:hover {
+  opacity: 0.7;
 }
 
 .header-title {
@@ -340,5 +444,149 @@ body {
   padding: 0.2rem 0 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* 侧边栏遮罩 */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 100;
+}
+
+/* 侧边栏 */
+.sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 300px;
+  background: #f5f5f5;
+  color: #000;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  transform: translateX(-100%);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  border-right: 4px solid #000;
+}
+
+.sidebar--open {
+  transform: translateX(0);
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.2rem;
+  height: 55px;
+  flex-shrink: 0;
+  background: #000;
+  color: #fff;
+  border-bottom: 4px solid #000;
+}
+
+.sidebar-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.sidebar-close {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.1s;
+}
+
+.sidebar-close:hover {
+  transform: scale(1.2);
+}
+
+.new-session-btn {
+  margin: 1rem 0.8rem 0.6rem;
+  padding: 0.75rem 1rem;
+  background: #000;
+  color: #fff;
+  border: 4px solid #000;
+  font-family: 'Space Mono', 'Courier New', monospace;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  text-align: center;
+  text-transform: uppercase;
+  transition: all 0.1s;
+}
+
+.new-session-btn:hover {
+  background: #fff;
+  color: #000;
+  transform: translate(-3px, -3px);
+  box-shadow: 6px 6px 0 #000;
+}
+
+.new-session-btn:active {
+  transform: translate(0, 0);
+  box-shadow: 0 0 0 #000;
+}
+
+.session-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+  padding: 0.8rem 0.6rem 1rem;
+}
+
+.session-list::-webkit-scrollbar {
+  width: 6px;
+}
+.session-list::-webkit-scrollbar-track {
+  background: #e8e8e8;
+}
+.session-list::-webkit-scrollbar-thumb {
+  background: #000;
+}
+
+.session-item {
+  padding: 0.7rem 0.8rem;
+  cursor: pointer;
+  border: 3px solid #ddd;
+  transition: all 0.1s;
+  margin-bottom: 6px;
+  background: #fff;
+}
+
+.session-item:hover {
+  border-color: #000;
+  background: #f0f0f0;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 #000;
+}
+
+.session-item--active {
+  background: #000;
+  border-color: #000;
+  box-shadow: 4px 4px 0 #000;
+}
+
+.session-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #000;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.02em;
+}
+
+.session-item--active .session-title {
+  color: #fff;
 }
 </style>

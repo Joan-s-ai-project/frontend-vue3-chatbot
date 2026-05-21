@@ -101,3 +101,12 @@ export async function fetchHistory(id: string): Promise<any[]> {
   }
   return res.json()
 }
+
+/**
+ * 获取历史会话列表
+ */
+export async function fetchHistoryList(): Promise<{ id: string; title: string; createdAt: number; messageCount: number }[]> {
+  const res = await fetch('/api/history')
+  if (!res.ok) throw new Error('获取会话列表失败')
+  return res.json()
+}

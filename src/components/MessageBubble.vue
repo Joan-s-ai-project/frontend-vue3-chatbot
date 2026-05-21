@@ -23,7 +23,7 @@ const props = defineProps<{
     cached_tokens: number
   }
   model?: string
-  toolCalls?: { name: string; query: string; result?: string; loading?: boolean }[]
+  toolCalls?: { name: string; query?: string; command?: string; result?: string; loading?: boolean }[]
 }>()
 
 marked.setOptions({
@@ -36,6 +36,9 @@ const renderedContent = computed(() => {
   const raw = props.reasoningLoading ? props.content + '\n\n' : props.content
   return marked.parse(raw) as string
 })
+
+// 用户消息：纯文本，不走 Markdown，防止 HTML 标签被渲染
+const userContent = computed(() => props.content ?? '')
 </script>
 
 <template>
@@ -54,29 +57,56 @@ const renderedContent = computed(() => {
       <!-- Tool 调用状态 -->
       <div class="tool-calls" v-if="!isUser && toolCalls && toolCalls.length">
         <details class="tool-call" v-for="(tc, i) in toolCalls" :key="i" :class="{ loading: tc.loading }">
-          <summary class="tool-header">
-            <span class="tool-icon-wrap">
-              <svg v-if="tc.loading" class="tool-spinner" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
-              </svg>
-              <svg v-else class="tool-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
-                <circle cx="8" cy="8" r="6.5" />
-                <ellipse cx="8" cy="8" rx="3" ry="6.5" />
-                <line x1="1.5" y1="8" x2="14.5" y2="8" />
-                <line x1="2.5" y1="5" x2="13.5" y2="5" />
-                <line x1="2.5" y1="11" x2="13.5" y2="11" />
-              </svg>
-            </span>
-            <span class="tool-label">Web search:</span>
-            <span class="tool-query">{{ tc.query }}</span>
-            <span class="tool-expand-hint">{{ tc.loading ? '' : '▶' }}</span>
-          </summary>
-          <div class="tool-result-text" v-if="tc.result" v-html="marked.parse(tc.result)"></div>
+
+          <!-- search_web -->
+          <template v-if="tc.name === 'search_web'">
+            <summary class="tool-header">
+              <span class="tool-icon-wrap">
+                <svg v-if="tc.loading" class="tool-spinner" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
+                </svg>
+                <svg v-else class="tool-icon-svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3">
+                  <circle cx="8" cy="8" r="6.5" />
+                  <ellipse cx="8" cy="8" rx="3" ry="6.5" />
+                  <line x1="1.5" y1="8" x2="14.5" y2="8" />
+                  <line x1="2.5" y1="5" x2="13.5" y2="5" />
+                  <line x1="2.5" y1="11" x2="13.5" y2="11" />
+                </svg>
+              </span>
+              <span class="tool-label">Web search:</span>
+              <span class="tool-query">{{ tc.query }}</span>
+              <span class="tool-expand-hint">{{ tc.loading ? '' : '▶' }}</span>
+            </summary>
+            <div class="tool-result-text" v-if="tc.result" v-html="marked.parse(tc.result)"></div>
+          </template>
+
+          <!-- run_bash -->
+          <template v-else-if="tc.name === 'run_bash'">
+            <summary class="tool-header tool-header--bash">
+              <span class="tool-icon-wrap">
+                <svg v-if="tc.loading" class="tool-spinner tool-spinner--bash" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
+                </svg>
+                <span v-else class="tool-bash-icon">$</span>
+              </span>
+              <span class="tool-label tool-label--bash">Bash:</span>
+              <span class="tool-query tool-query--bash">{{ tc.command }}</span>
+              <span class="tool-expand-hint">{{ tc.loading ? '' : '▶' }}</span>
+            </summary>
+            <div class="tool-result-text tool-result-bash" v-if="tc.result" v-html="marked.parse(tc.result)"></div>
+          </template>
+
         </details>
       </div>
+      <!-- 用户消息：纯文本，不渲染 HTML/Markdown，防止注入 -->
       <div
+        v-if="content && isUser"
+        class="content user-text"
+      >{{ userContent }}</div>
+      <!-- AI 消息：Markdown 渲染 -->
+      <div
+        v-else-if="content && !isUser"
         class="content markdown-body"
-        v-if="content"
         v-html="renderedContent"
       ></div>
       <!-- 费用信息 -->
@@ -160,6 +190,11 @@ const renderedContent = computed(() => {
 .user .content {
   background: #000;
   color: #fff;
+}
+
+/* 用户消息纯文本：保留换行，不渲染 HTML */
+.user-text {
+  white-space: pre-wrap;
 }
 
 .assistant .content {
@@ -561,6 +596,68 @@ const renderedContent = computed(() => {
   border: 2px solid #000;
   padding: 0 0.3rem;
 }
+.tool-result-bash {
+  font-family: 'Space Mono', 'Courier New', monospace;
+}
+
+.tool-result-bash :deep(pre) {
+  background: #0d0d0d;
+  color: #00ff88;
+  border: none;
+  margin: 0;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.tool-result-bash :deep(code) {
+  background: none;
+  border: none;
+  color: inherit;
+}
+
+.tool-result-bash :deep(p) {
+  margin: 0.2em 0;
+  font-size: 0.75rem;
+  color: #aaa;
+}
+
+.tool-result-bash :deep(strong) {
+  color: #7dd3fc;
+  font-weight: 700;
+}
+
+.tool-header--bash {
+  background: #0d1117;
+  border-bottom: 1px solid #1e2a1e;
+}
+
+.tool-header--bash:hover {
+  background: #161b22;
+}
+
+.tool-label--bash {
+  color: #4ade80;
+}
+
+.tool-query--bash {
+  color: #7dd3fc;
+  font-family: 'Space Mono', monospace;
+}
+
+.tool-bash-icon {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #4ade80;
+  font-family: 'Space Mono', monospace;
+  line-height: 1;
+}
+
+.tool-spinner--bash {
+  color: #4ade80;
+}
+
 .user .markdown-body :deep(code) {
   background: rgba(255, 255, 255, 0.15);
   color: #fff;

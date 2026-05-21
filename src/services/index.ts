@@ -6,7 +6,7 @@
 export { sessionId, isHistorySession } from './chat'
 export type { StreamCallbacks } from './sse'
 
-import { fetchChat, fetchChatStream, fetchHistory, fetchModels } from './chat'
+import { fetchChat, fetchChatStream, fetchHistory, fetchHistoryList, fetchModels } from './chat'
 import { consumeSseStream } from './sse'
 import type { StreamCallbacks } from './sse'
 
@@ -31,6 +31,13 @@ export async function sendStreamMessage(message: string, images: string[], callb
  */
 export async function loadHistory(id: string) {
   return fetchHistory(id)
+}
+
+/**
+ * 加载历史会话列表
+ */
+export async function loadHistoryList() {
+  return fetchHistoryList()
 }
 
 /**

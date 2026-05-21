@@ -12,6 +12,7 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
+    allowedHosts: true,
     proxy: {
       // 将 /api 代理到 Koa 后端
       '/api': {

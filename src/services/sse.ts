@@ -7,7 +7,8 @@ export interface StreamCallbacks {
   onReasoning?: (text: string) => void
   onContent?: (text: string) => void
   onSearching?: (query: string) => void
-  onToolResult?: (data: { name: string; query: string; result: string }) => void
+  onBashRunning?: (command: string) => void
+  onToolResult?: (data: { name: string; query?: string; command?: string; result: string }) => void
   onDone?: (data: { usage?: any; cost?: any; model?: string }) => void
   onError?: (message: string, code?: number | string) => void
 }
@@ -59,8 +60,11 @@ export async function consumeSseStream(res: Response, callbacks: StreamCallbacks
         case 'searching':
           callbacks.onSearching?.(data.query)
           break
+        case 'bash_running':
+          callbacks.onBashRunning?.(data.command)
+          break
         case 'tool_result':
-          callbacks.onToolResult?.({ name: data.name, query: data.query, result: data.result })
+          callbacks.onToolResult?.({ name: data.name, query: data.query, command: data.command, result: data.result })
           break
         case 'done':
           callbacks.onDone?.({ usage: data.usage, cost: data.cost, model: data.model })
