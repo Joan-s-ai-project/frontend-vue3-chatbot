@@ -110,3 +110,16 @@ export async function fetchHistoryList(): Promise<{ id: string; title: string; c
   if (!res.ok) throw new Error('获取会话列表失败')
   return res.json()
 }
+
+/**
+ * 删除历史会话
+ */
+export async function fetchDeleteHistory(id: string): Promise<{ success: boolean; message: string }> {
+  const res = await fetch(`/api/history/${id}`, {
+    method: 'DELETE'
+  })
+  if (!res.ok) {
+    throw new Error('删除会话失败')
+  }
+  return res.json()
+}

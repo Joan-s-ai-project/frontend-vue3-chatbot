@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadHistoryList, loadModels } from '@/services'
+import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession } from '@/services'
 
 // 新会话：第一次发消息后把 sessionId 写入 URL，方便分享/定位
 function syncSessionIdToUrl() {
@@ -41,6 +41,31 @@ function openSession(id: string) {
 
 function newSession() {
   window.location.href = '/'
+}
+
+async function handleDeleteSession(id: string, event: Event) {
+  event.stopPropagation() // 阻止触发 openSession
+  
+  if (!confirm('确定要删除这个会话吗？')) {
+    return
+  }
+  
+  try {
+    await deleteSession(id)
+    
+    // 从列表中移除该会话
+    sessionList.value = sessionList.value.filter(s => s.id !== id)
+    
+    // 如果删除的是当前会话，清空消息列表并重置为新会话
+    if (id === sessionId) {
+      messages.value = []
+      // 不刷新页面，只更新 URL
+      window.history.replaceState(null, '', '/')
+    }
+  } catch (err: any) {
+    console.error('[App] 删除会话失败:', err.message)
+    alert('删除失败：' + err.message)
+  }
 }
 
 /**
@@ -223,6 +248,13 @@ async function handleSend(text: string, images: string[] = []) {
           @click="openSession(s.id)"
         >
           <div class="session-title">{{ s.title || '新对话' }}</div>
+          <button 
+            class="session-delete-btn" 
+            @click="handleDeleteSession(s.id, $event)"
+            title="删除会话"
+          >
+            🗑️
+          </button>
         </li>
       </ul>
     </aside>
@@ -561,6 +593,10 @@ body {
   transition: all 0.1s;
   margin-bottom: 6px;
   background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
 }
 
 .session-item:hover {
@@ -574,6 +610,14 @@ body {
   background: #000;
   border-color: #000;
   box-shadow: 4px 4px 0 #000;
+  margin-bottom: 10px;
+}
+
+.session-item--active:hover {
+  background: #000;
+  border-color: #000;
+  transform: none;
+  box-shadow: 4px 4px 0 #000;
 }
 
 .session-title {
@@ -584,9 +628,35 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   letter-spacing: 0.02em;
+  flex: 1;
 }
 
 .session-item--active .session-title {
   color: #fff;
+}
+
+.session-delete-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+  line-height: 1;
+  transition: all 0.1s;
+  flex-shrink: 0;
+}
+
+.session-delete-btn:hover {
+  color: #ff0000;
+  transform: scale(1.2);
+}
+
+.session-item--active .session-delete-btn {
+  color: #ccc;
+}
+
+.session-item--active .session-delete-btn:hover {
+  color: #ff6666;
 }
 </style>

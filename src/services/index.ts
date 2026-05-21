@@ -6,7 +6,7 @@
 export { sessionId, isHistorySession } from './chat'
 export type { StreamCallbacks } from './sse'
 
-import { fetchChat, fetchChatStream, fetchHistory, fetchHistoryList, fetchModels } from './chat'
+import { fetchChat, fetchChatStream, fetchHistory, fetchHistoryList, fetchModels, fetchDeleteHistory } from './chat'
 import { consumeSseStream } from './sse'
 import type { StreamCallbacks } from './sse'
 
@@ -45,4 +45,11 @@ export async function loadHistoryList() {
  */
 export async function loadModels() {
   return fetchModels()
+}
+
+/**
+ * 删除历史会话
+ */
+export async function deleteSession(id: string) {
+  return fetchDeleteHistory(id)
 }
