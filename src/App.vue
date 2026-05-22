@@ -108,6 +108,7 @@ function mapHistoryToMessages(history: any[]): Message[] {
         id: idCounter++,
         content: item.content || '',
         isUser: true,
+        ...(item.images && item.images.length > 0 ? { images: item.images } : {}),
       })
       continue
     }
@@ -408,12 +409,15 @@ body {
   background: #000;
   color: #fff;
   border-bottom: 4px solid #000;
+  gap: 0.5rem;
+  overflow: hidden;
 }
 
 .header-left {
   display: flex;
   align-items: center;
   gap: 0.8rem;
+  flex-shrink: 0;
 }
 
 .menu-btn {
@@ -424,6 +428,7 @@ body {
   cursor: pointer;
   padding: 0 0.2rem;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .menu-btn:hover {
@@ -434,6 +439,7 @@ body {
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  white-space: nowrap;
 }
 
 .header-title h1 {
@@ -441,10 +447,12 @@ body {
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .logo {
   font-size: 1.3rem;
+  flex-shrink: 0;
 }
 
 .header-badge {
@@ -456,6 +464,7 @@ body {
   border: none;
   letter-spacing: 0.1em;
   font-family: 'Courier New', monospace;
+  white-space: nowrap;
 }
 
 .model-select {
@@ -477,10 +486,49 @@ body {
   background-repeat: no-repeat;
   background-position: right 0.4rem center;
   padding-right: 1.4rem;
+  /* 小屏幕下限制宽度，防止撑开 header */
+  max-width: 200px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .model-select:hover {
   background-color: #e0e0e0;
+}
+
+/* 小屏幕适配 */
+@media (max-width: 480px) {
+  .header {
+    padding: 0 0.8rem;
+    gap: 0.4rem;
+  }
+
+  .header-left {
+    gap: 0.5rem;
+  }
+
+  .header-title h1 {
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+  }
+
+  .logo {
+    font-size: 1rem;
+  }
+
+  .menu-btn {
+    font-size: 1.1rem;
+  }
+
+  .model-select {
+    font-size: 0.62rem;
+    max-width: 140px;
+    padding: 0.2rem 0.4rem;
+    padding-right: 1.2rem;
+    letter-spacing: 0.02em;
+  }
 }
 
 /* 欢迎页 */

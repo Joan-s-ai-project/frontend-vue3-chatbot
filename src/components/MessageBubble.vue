@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { marked } from 'marked'
 import ThinkingBlock from './ThinkingBlock.vue'
 import type { ContentBlock } from './MessageList.vue'
@@ -35,6 +35,33 @@ const renderedContent = computed(() => {
 })
 
 const userContent = computed(() => props.content ?? '')
+
+const copied = ref(false)
+async function copyUserContent() {
+  const text = userContent.value
+  if (!text) return
+
+  const markDone = () => {
+    copied.value = true
+    setTimeout(() => { copied.value = false }, 1500)
+  }
+
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text)
+    markDone()
+  } else {
+    // fallback：创建临时 textarea 选中复制
+    const el = document.createElement('textarea')
+    el.value = text
+    el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'
+    document.body.appendChild(el)
+    el.focus()
+    el.select()
+    const ok = document.execCommand('copy')
+    document.body.removeChild(el)
+    if (ok) markDone()
+  }
+}
 </script>
 
 <template>
@@ -105,8 +132,24 @@ const userContent = computed(() => props.content ?? '')
       <!-- 用户消息：纯文本，不渲染 HTML/Markdown，防止注入 -->
       <div
         v-if="content && isUser"
-        class="content user-text"
-      >{{ userContent }}</div>
+        class="user-content-wrap"
+      >
+        <div class="content user-text">{{ userContent }}</div>
+        <button
+          class="copy-btn"
+          :class="{ copied }"
+          @click="copyUserContent"
+          :title="copied ? '已复制' : '复制'"
+        >
+          <svg v-if="!copied" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="5" y="1" width="9" height="11" rx="1" />
+            <rect x="1" y="4" width="9" height="11" rx="1" />
+          </svg>
+          <svg v-else viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="2,8 6,12 14,4" />
+          </svg>
+        </button>
+      </div>
       <!-- AI 消息：Markdown 渲染 -->
       <div
         v-else-if="content && !isUser"
@@ -184,7 +227,7 @@ const userContent = computed(() => props.content ?? '')
 }
 
 .content {
-  padding: 0.7rem 0.9rem;
+  padding: 0.4rem 0.6rem;
   line-height: 1.6;
   word-break: break-word;
   font-size: 0.88rem;
@@ -199,6 +242,50 @@ const userContent = computed(() => props.content ?? '')
 /* 用户消息纯文本：保留换行，不渲染 HTML */
 .user-text {
   white-space: pre-wrap;
+}
+
+/* 用户消息 wrapper，hover 时显示复制按钮 */
+.user-content-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 3px;
+  background: #fff;
+  border: 2px solid #000;
+  cursor: pointer;
+  transition: background 0.15s;
+  color: #000;
+  border-radius: 2px;
+  align-self: flex-end;
+}
+
+.copy-btn:hover {
+  background: #f0f0f0;
+}
+
+.copy-btn svg {
+  width: 11px;
+  height: 11px;
+}
+
+.copy-btn.copied {
+  border-color: #16a34a;
+  color: #16a34a;
+  background: #f0fdf4;
+}
+
+.user-content-wrap:hover .copy-btn {
+  opacity: 1;
 }
 
 .assistant .content {

@@ -52,6 +52,7 @@ const props = defineProps<{
 
 const container = ref<HTMLElement | null>(null)
 const isAutoScrollEnabled = ref(true)
+const showScrollBtn = ref(false)
 let isProgrammaticScroll = false  // 标记是程序触发的滚动，不应影响 isAutoScrollEnabled
 
 function handleScroll() {
@@ -59,8 +60,8 @@ function handleScroll() {
   if (isProgrammaticScroll) return  // 忽略程序触发的滚动事件
   const { scrollTop, scrollHeight, clientHeight } = container.value
   const isAtBottom = scrollHeight - scrollTop - clientHeight <= 10
-  // 只有用户主动向上滚动时才关闭自动滚动；到达底部时重新开启
   isAutoScrollEnabled.value = isAtBottom
+  showScrollBtn.value = !isAtBottom
 }
 
 async function scrollToBottom() {
@@ -68,6 +69,7 @@ async function scrollToBottom() {
   isProgrammaticScroll = true
   container.value.scrollTop = container.value.scrollHeight
   await nextTick()
+  showScrollBtn.value = false
   // 等下一帧再关闭标志，确保 scroll 事件已经触发完毕
   requestAnimationFrame(() => {
     isProgrammaticScroll = false
@@ -104,7 +106,6 @@ watch(
 )
 
 // 最后一条消息从空内容变为有内容时（如错误写入），强制滚到底
-// 解决用户滚动后 isAutoScrollEnabled=false 导致错误消息不可见的问题
 watch(
   () => {
     const last = props.messages[props.messages.length - 1]
@@ -121,22 +122,46 @@ watch(
 </script>
 
 <template>
-  <div class="message-list" ref="container">
-    <MessageBubble
-      v-for="msg in messages"
-      :key="msg.id"
-      :content="msg.content"
-      :is-user="msg.isUser"
-      :blocks="msg.blocks"
-      :cost="msg.cost"
-      :usage="msg.usage"
-      :model="msg.model"
-      :images="msg.images"
-    />
+  <div class="message-list-wrap">
+    <div class="message-list" ref="container">
+      <MessageBubble
+        v-for="msg in messages"
+        :key="msg.id"
+        :content="msg.content"
+        :is-user="msg.isUser"
+        :blocks="msg.blocks"
+        :cost="msg.cost"
+        :usage="msg.usage"
+        :model="msg.model"
+        :images="msg.images"
+      />
+    </div>
+
+    <!-- 滚动到底部悬浮按钮 -->
+    <Transition name="scroll-btn">
+      <button
+        v-if="showScrollBtn"
+        class="scroll-to-bottom"
+        @click="scrollToBottom"
+        title="滚动到底部"
+      >
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3,5 8,11 13,5" />
+        </svg>
+      </button>
+    </Transition>
   </div>
 </template>
 
 <style scoped>
+.message-list-wrap {
+  flex: 1;
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .message-list {
   flex: 1;
   overflow-y: auto;
@@ -158,5 +183,52 @@ watch(
 
 .message-list::-webkit-scrollbar-thumb {
   background: #000;
+}
+
+/* 滚动到底部按钮 */
+.scroll-to-bottom {
+  position: absolute;
+  bottom: 1.2rem;
+  right: 1.2rem;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: #fff;
+  border: 3px solid #000;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 #333;
+  transition: box-shadow 0.1s, transform 0.1s;
+  z-index: 10;
+}
+
+.scroll-to-bottom:hover {
+  box-shadow: 6px 6px 0 #333;
+  transform: translate(-2px, -2px);
+}
+
+.scroll-to-bottom:active {
+  box-shadow: 1px 1px 0 #333;
+  transform: translate(0, 0);
+}
+
+.scroll-to-bottom svg {
+  width: 13px;
+  height: 13px;
+  stroke-width: 2;
+}
+
+/* 出现/消失动画 */
+.scroll-btn-enter-active,
+.scroll-btn-leave-active {
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.scroll-btn-enter-from,
+.scroll-btn-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
 }
 </style>
