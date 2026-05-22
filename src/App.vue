@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession } from '@/services'
 
 // 新会话：第一次发消息后把 sessionId 写入 URL，方便分享/定位
@@ -13,6 +13,8 @@ function syncSessionIdToUrl() {
 import ChatInput from '@/components/ChatInput.vue'
 import MessageList from '@/components/MessageList.vue'
 import type { Message } from '@/components/MessageList.vue'
+
+const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
 
 const messages = ref<Message[]>([])
 const loading = ref(false)
@@ -202,6 +204,10 @@ onMounted(async () => {
         const matched = models.value.find(m => m.id === lastModelEntry.model)
         if (matched) selectedModel.value = matched.id
       }
+
+      // 历史消息加载完毕后滚到底部
+      await nextTick()
+      messageListRef.value?.scrollToBottom()
     } catch (err: any) {
       console.error('[App] 加载历史失败:', err.message)
     }
@@ -352,11 +358,12 @@ async function handleSend(text: string, images: string[] = []) {
         <div class="tip" @click="handleSend('用简单的话解释什么是量子计算', [])">→ 用简单的话解释什么是量子计算</div>
         <div class="tip" @click="handleSend('写一首关于春天的诗', [])">→ 写一首关于春天的诗</div>
         <div class="tip" @click="handleSend('帮我列一个周末旅行清单', [])">→ 帮我列一个周末旅行清单</div>
+        <div class="tip" @click="handleSend('今天广州的天气怎么样', [])">→ 今天广州的天气怎么样</div>
       </div>
     </div>
 
     <!-- 消息列表 -->
-    <MessageList v-else :messages="messages" />
+    <MessageList v-else :messages="messages" ref="messageListRef" />
 
     <!-- 输入框 -->
     <div class="input-wrapper">

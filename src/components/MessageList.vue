@@ -82,6 +82,8 @@ onUnmounted(() => {
   container.value?.removeEventListener('scroll', handleScroll)
 })
 
+defineExpose({ scrollToBottom })
+
 watch(
   () => props.messages.length,
   async () => {
