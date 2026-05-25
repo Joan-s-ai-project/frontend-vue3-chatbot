@@ -145,6 +145,47 @@ async function copyUserContent() {
             </summary>
             <div class="tool-result-text tool-result-bash" v-if="block.result" v-html="marked.parse(block.result)"></div>
           </details>
+          <!-- memory_search tool -->
+          <details
+            v-else-if="block.kind === 'tool' && block.name === 'memory_search'"
+            class="tool-call tool-call--memory"
+            :class="{ loading: block.loading }"
+          >
+            <summary class="tool-header tool-header--memory">
+              <span class="tool-icon-wrap">
+                <svg v-if="block.loading" class="tool-spinner tool-spinner--memory" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
+                </svg>
+                <svg v-else class="tool-icon-svg tool-icon-svg--memory" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                  <ellipse cx="8" cy="5" rx="6" ry="2.5" />
+                  <path d="M2 5v3c0 1.38 2.69 2.5 6 2.5S14 9.38 14 8V5" />
+                  <path d="M2 8v3c0 1.38 2.69 2.5 6 2.5S14 12.38 14 11V8" />
+                </svg>
+              </span>
+              <span class="tool-label tool-label--memory">Memory:</span>
+              <span class="tool-query tool-query--memory">{{ block.query }}</span>
+              <span class="tool-expand-hint">{{ block.loading ? '' : '▶' }}</span>
+            </summary>
+            <div class="tool-result-text" v-if="block.result" v-html="marked.parse(block.result)"></div>
+          </details>
+          <!-- memory_save tool -->
+          <div
+            v-else-if="block.kind === 'tool' && block.name === 'memory_save'"
+            class="tool-call tool-call--memory-save"
+            :class="{ loading: block.loading }"
+          >
+            <span class="tool-icon-wrap">
+              <svg v-if="block.loading" class="tool-spinner tool-spinner--memory" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
+              </svg>
+              <svg v-else viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" class="tool-icon-svg tool-icon-svg--memory">
+                <path d="M13 2H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1z"/>
+                <polyline points="5,2 5,7 11,7 11,2"/>
+                <polyline points="5,12 5,9 11,9 11,12"/>
+              </svg>
+            </span>
+            <span class="tool-label tool-label--memory">{{ block.loading ? 'Saving memory...' : 'Memory saved' }}</span>
+          </div>
         </template>
       </template>
       <!-- Tool 调用状态 -->
@@ -824,6 +865,54 @@ async function copyUserContent() {
 
 .tool-spinner--bash {
   color: #4ade80;
+}
+/* Memory 工具样式 */
+.tool-call--memory {
+  border-color: #7c3aed;
+  background: #1a1030;
+}
+
+.tool-call--memory.loading {
+  border-style: dashed;
+  border-color: #6d28d9;
+}
+
+.tool-header--memory {
+  background: #1a1030;
+  border-bottom: 1px solid #3b1f6e;
+}
+
+.tool-header--memory:hover {
+  background: #231545;
+}
+
+.tool-label--memory {
+  color: #a78bfa;
+}
+
+.tool-query--memory {
+  color: #ddd6fe;
+  font-family: 'Space Mono', monospace;
+}
+
+.tool-icon-svg--memory {
+  color: #a78bfa;
+}
+
+.tool-spinner--memory {
+  color: #a78bfa;
+}
+
+/* memory_save 内联样式（不可展开） */
+.tool-call--memory-save {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border: 2px dashed #6d28d9;
+  background: #1a1030;
+  border-radius: 4px;
+  font-size: 0.8rem;
 }
 
 .user .markdown-body :deep(code) {

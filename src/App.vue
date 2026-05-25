@@ -278,6 +278,20 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
         }
         aiMsg.blocks!.push({ kind: 'tool', name: 'run_bash', command, loading: true })
       },
+      onMemorySearching(query) {
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.loading = false
+        }
+        aiMsg.blocks!.push({ kind: 'tool', name: 'memory_search', query, loading: true })
+      },
+      onMemorySaving(_conversationId) {
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.loading = false
+        }
+        aiMsg.blocks!.push({ kind: 'tool', name: 'memory_save', loading: true })
+      },
       onToolResult(data) {
         // 找最后一个同名且 loading 的 tool 块
         const toolBlock = [...aiMsg.blocks!].reverse().find(
