@@ -27,6 +27,7 @@ export interface Message {
   /** 有序内容块（thinking + tool 交替，按实际顺序） */
   blocks?: ContentBlock[]
   images?: string[]
+  attachments?: Array<{ type: 'image' | 'document'; name: string; dataUrl?: string }>
   cost?: {
     input_cost: number
     cache_cost: number
@@ -134,6 +135,7 @@ watch(
         :usage="msg.usage"
         :model="msg.model"
         :images="msg.images"
+        :attachments="msg.attachments"
       />
     </div>
 

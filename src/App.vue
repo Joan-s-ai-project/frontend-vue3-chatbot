@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
 import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession } from '@/services'
+import type { AttachmentResult } from '@/services'
 
 // 新会话：第一次发消息后把 sessionId 写入 URL，方便分享/定位
 function syncSessionIdToUrl() {
@@ -15,6 +16,7 @@ import MessageList from '@/components/MessageList.vue'
 import type { Message } from '@/components/MessageList.vue'
 
 const messageListRef = ref<InstanceType<typeof MessageList> | null>(null)
+const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 
 const messages = ref<Message[]>([])
 const loading = ref(false)
@@ -61,6 +63,7 @@ async function handleDeleteSession(id: string, event: Event) {
     // 如果删除的是当前会话，清空消息列表并重置为新会话
     if (id === sessionId) {
       messages.value = []
+      chatInputRef.value?.clearAll()
       // 不刷新页面，只更新 URL
       window.history.replaceState(null, '', '/')
     }
@@ -109,6 +112,7 @@ function mapHistoryToMessages(history: any[]): Message[] {
         content: item.content || '',
         isUser: true,
         ...(item.images && item.images.length > 0 ? { images: item.images } : {}),
+        ...(item.attachments && item.attachments.length > 0 ? { attachments: item.attachments } : {}),
       })
       continue
     }
@@ -215,7 +219,7 @@ onMounted(async () => {
   }
 })
 
-async function handleSend(text: string, images: string[] = []) {
+async function handleSend(text: string, images: string[] = [], attachments: AttachmentResult[] = []) {
   // 新会话第一次发消息时，把 sessionId 同步到 URL
   syncSessionIdToUrl()
 
@@ -224,6 +228,9 @@ async function handleSend(text: string, images: string[] = []) {
     content: text,
     isUser: true,
     images: images.length > 0 ? images : undefined,
+    attachments: attachments.length > 0
+      ? attachments.map(a => ({ type: a.type, name: a.name, dataUrl: a.dataUrl }))
+      : undefined,
   })
 
   messages.value.push({
@@ -294,7 +301,7 @@ async function handleSend(text: string, images: string[] = []) {
         aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
         loading.value = false
       }
-    }, selectedModel.value || undefined)
+    }, selectedModel.value || undefined, attachments.length > 0 ? attachments : undefined)
   } catch (err: any) {
     aiMsg.content = `❌ ${err.message}`
     aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
@@ -368,7 +375,7 @@ async function handleSend(text: string, images: string[] = []) {
 
     <!-- 输入框 -->
     <div class="input-wrapper">
-      <ChatInput @send="(msg, imgs) => handleSend(msg, imgs)" />
+      <ChatInput ref="chatInputRef" @send="(msg, imgs, atts) => handleSend(msg, imgs, atts)" />
       <p class="disclaimer">AI 生成内容仅供参考</p>
     </div>
   </div>

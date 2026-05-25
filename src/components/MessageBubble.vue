@@ -9,6 +9,7 @@ const props = defineProps<{
   isUser: boolean
   blocks?: ContentBlock[]
   images?: string[]
+  attachments?: Array<{ type: 'image' | 'document'; name: string; dataUrl?: string }>
   cost?: {
     input_cost: number
     cache_cost: number
@@ -71,6 +72,25 @@ async function copyUserContent() {
       <!-- 用户消息中的图片 -->
       <div class="msg-images" v-if="isUser && images && images.length">
         <img v-for="(img, i) in images" :key="i" :src="img" alt="用户图片" class="msg-image" />
+      </div>
+      <!-- 用户消息中的附件：保持原始顺序，图片有 dataUrl 才显示缩略图，否则降级为文件卡片 -->
+      <div class="msg-attachments" v-if="isUser && attachments && attachments.length">
+        <div v-for="(att, i) in attachments" :key="i" class="msg-attachment">
+          <!-- 图片且有 dataUrl：显示缩略图 -->
+          <template v-if="att.type === 'image' && att.dataUrl">
+            <img :src="att.dataUrl" :alt="att.name" class="msg-att-image" />
+          </template>
+          <!-- 文档，或图片但无 dataUrl（历史记录）：文件卡片 -->
+          <template v-else>
+            <div class="msg-att-icon-block">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+              </svg>
+            </div>
+            <span class="msg-att-name">{{ att.name }}</span>
+          </template>
+        </div>
       </div>
       <!-- 有序内容块：thinking 和 tool 按实际产生顺序交替渲染 -->
       <template v-if="!isUser && blocks && blocks.length">
@@ -224,6 +244,63 @@ async function copyUserContent() {
   border: 3px solid #000;
   object-fit: contain;
   background: #f5f5f5;
+}
+
+/* 消息中的附件 */
+.msg-attachments {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.25rem;
+  align-items: flex-end;
+}
+
+.msg-attachment {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0;
+  border: 3px solid #000;
+  background: #f5f5f5;
+}
+
+/* 图片缩略图（当前会话有 dataUrl） */
+.msg-att-image {
+  width: 140px;
+  height: 140px;
+  object-fit: cover;
+  display: block;
+  border: 3px solid #000;
+}
+
+/* 文件图标 */
+.msg-att-icon-block {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-right: 3px solid #000;
+  background: #e8e8e8;
+  color: #000;
+}
+
+.msg-att-icon-block svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* 文件名 */
+.msg-att-name {
+  font-size: 0.78rem;
+  font-family: 'Space Mono', 'Courier New', monospace;
+  font-weight: 700;
+  color: #000;
+  white-space: normal;
+  word-break: break-all;
+  line-height: 1.4;
+  padding: 0.2rem 0.5rem;
+  align-self: center;
 }
 
 .content {

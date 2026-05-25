@@ -9,6 +9,10 @@ export type { StreamCallbacks } from './sse'
 import { fetchChat, fetchChatStream, fetchHistory, fetchHistoryList, fetchModels, fetchDeleteHistory } from './chat'
 import { consumeSseStream } from './sse'
 import type { StreamCallbacks } from './sse'
+import type { AttachmentResult } from './upload'
+
+export type { AttachmentResult } from './upload'
+export { uploadAttachment, validateFile, MAX_FILE_SIZE, MAX_ATTACHMENTS } from './upload'
 
 /**
  * 非流式聊天，返回解析后的 JSON
@@ -21,8 +25,14 @@ export async function sendMessage(message: string) {
 /**
  * 流式聊天（SSE）
  */
-export async function sendStreamMessage(message: string, images: string[], callbacks: StreamCallbacks, model?: string) {
-  const res = await fetchChatStream(message, images, model)
+export async function sendStreamMessage(
+  message: string,
+  images: string[],
+  callbacks: StreamCallbacks,
+  model?: string,
+  attachments?: AttachmentResult[],
+) {
+  const res = await fetchChatStream(message, images, model, attachments)
   await consumeSseStream(res, callbacks)
 }
 

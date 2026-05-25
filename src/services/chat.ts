@@ -49,16 +49,26 @@ export async function fetchChat(message: string): Promise<Response> {
   return res
 }
 
+import type { AttachmentResult } from './upload'
+
 /**
  * 流式聊天（SSE）
  */
-export async function fetchChatStream(message: string, images?: string[], model?: string): Promise<Response> {
+export async function fetchChatStream(
+  message: string,
+  images?: string[],
+  model?: string,
+  attachments?: AttachmentResult[],
+): Promise<Response> {
   const body: any = { sessionId, message, temperature: 0.1 }
   if (images && images.length > 0) {
     body.images = images
   }
   if (model) {
     body.model = model
+  }
+  if (attachments && attachments.length > 0) {
+    body.attachments = attachments
   }
 
   const res = await fetch('/api/v1/chat/completion', {
