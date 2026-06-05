@@ -349,10 +349,10 @@ function getFileExt(name: string): string {
           title="添加附件（图片/文档）"
           aria-label="添加附件"
         >
-          <svg viewBox="0 0 24 24" fill="none" class="attach-icon">
+          <svg viewBox="0 0 24 24" fill="none" class="attach-icon" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             />
           </svg>
         </button>
@@ -370,8 +370,8 @@ function getFileExt(name: string): string {
 
         <!-- 发送按钮 -->
         <button @click="handleSend" :disabled="sendDisabled" title="发送">
-          <svg viewBox="0 0 24 24" fill="none" class="send-icon">
-            <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94l18.06-7.65a.75.75 0 0 0 0-1.39L3.478 2.405z" fill="currentColor"/>
+          <svg viewBox="0 0 24 24" fill="none" class="send-icon" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94l18.06-7.65a.75.75 0 0 0 0-1.39L3.478 2.405z" fill="#ffffff"/>
           </svg>
         </button>
       </div>
@@ -383,7 +383,6 @@ function getFileExt(name: string): string {
 .chat-input {
   padding: 0.8rem 1rem;
   background: #fff;
-  contain: layout style;
   position: relative;
 }
 
@@ -429,6 +428,7 @@ function getFileExt(name: string): string {
   position: relative;
   display: flex;
   flex-direction: column;
+  width: 100%;
   background: #fff;
   border: 3px solid #000;
   padding: 0.5rem 1rem;
@@ -644,7 +644,7 @@ function getFileExt(name: string): string {
   border-radius: 50%;
   cursor: pointer;
   flex-shrink: 0;
-  transition: all 0.15s;
+  transition: background 0.15s, transform 0.15s;
 }
 
 .attach-btn:hover:not(:disabled) {
@@ -660,6 +660,9 @@ function getFileExt(name: string): string {
 .attach-icon {
   width: 16px;
   height: 16px;
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
 }
 
 /* 发送按钮 */
@@ -677,7 +680,7 @@ button:not(.attach-btn):not(.remove-btn) {
   flex-shrink: 0;
   font-size: 0.9rem;
   font-family: inherit;
-  transition: all 0.15s;
+  transition: background 0.15s, transform 0.15s, opacity 0.15s;
 }
 
 button:not(.attach-btn):not(.remove-btn):hover:not(:disabled) {
@@ -693,5 +696,8 @@ button:not(.attach-btn):not(.remove-btn):disabled {
 .send-icon {
   width: 18px;
   height: 18px;
+  display: block;
+  flex-shrink: 0;
+  overflow: visible;
 }
 </style>

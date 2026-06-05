@@ -10,6 +10,7 @@ export interface StreamCallbacks {
   onBashRunning?: (command: string) => void
   onMemorySearching?: (query: string) => void
   onMemorySaving?: (conversationId: string) => void
+  onBrowserAction?: (data: { action: string; url?: string; selector?: string }) => void
   onToolResult?: (data: { name: string; query?: string; command?: string; result: string }) => void
   onDone?: (data: { usage?: any; cost?: any; model?: string }) => void
   onError?: (message: string, code?: number | string) => void
@@ -70,6 +71,9 @@ export async function consumeSseStream(res: Response, callbacks: StreamCallbacks
           break
         case 'memory_saving':
           callbacks.onMemorySaving?.(data.conversation_id)
+          break
+        case 'browser_action':
+          callbacks.onBrowserAction?.({ action: data.action, url: data.url, selector: data.selector })
           break
         case 'tool_result':
           callbacks.onToolResult?.({ name: data.name, query: data.query, command: data.command, result: data.result })

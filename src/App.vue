@@ -20,6 +20,14 @@ const chatInputRef = ref<InstanceType<typeof ChatInput> | null>(null)
 
 const messages = ref<Message[]>([])
 const loading = ref(false)
+const toastMessage = ref('')
+const toastVisible = ref(false)
+
+function showToast(msg: string, duration = 2000) {
+  toastMessage.value = msg
+  toastVisible.value = true
+  setTimeout(() => { toastVisible.value = false }, duration)
+}
 
 // ── 模型选择 ──────────────────────────────────────────────────────────
 interface ModelOption { id: string; label: string; provider: string }
@@ -214,6 +222,11 @@ onMounted(async () => {
       await nextTick()
       messageListRef.value?.scrollToBottom()
     } catch (err: any) {
+      if (err.status === 404) {
+        showToast('会话不存在或已被删除', 1500)
+        setTimeout(() => { window.location.href = '/' }, 1500)
+        return
+      }
       console.error('[App] 加载历史失败:', err.message)
     }
   }
@@ -292,6 +305,18 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
         }
         aiMsg.blocks!.push({ kind: 'tool', name: 'memory_save', loading: true })
       },
+      onBrowserAction(data) {
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.loading = false
+        }
+        aiMsg.blocks!.push({
+          kind: 'tool',
+          name: 'browser',
+          query: data.action + (data.url ? `: ${data.url}` : data.selector ? `: ${data.selector}` : ''),
+          loading: true,
+        })
+      },
       onToolResult(data) {
         // 找最后一个同名且 loading 的 tool 块
         const toolBlock = [...aiMsg.blocks!].reverse().find(
@@ -327,6 +352,9 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
 
 <template>
   <div id="app">
+    <!-- Toast 提示 -->
+    <div v-if="toastVisible" class="toast">{{ toastMessage }}</div>
+
     <!-- 侧边栏遮罩 -->
     <div v-if="sidebarOpen" class="sidebar-overlay" @click="sidebarOpen = false" />
 
@@ -621,6 +649,30 @@ body {
   padding: 0.2rem 0 0.6rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+/* Toast 提示 */
+.toast {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000;
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  font-family: 'Space Mono', 'Courier New', monospace;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border: 3px solid #000;
+  box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  animation: toast-in 0.2s ease-out;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-10px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 /* 侧边栏遮罩 */

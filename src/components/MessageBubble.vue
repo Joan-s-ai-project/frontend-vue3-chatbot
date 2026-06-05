@@ -186,6 +186,37 @@ async function copyUserContent() {
             </span>
             <span class="tool-label tool-label--memory">{{ block.loading ? 'Saving memory...' : 'Memory saved' }}</span>
           </div>
+          <!-- browser tool -->
+          <details
+            v-else-if="block.kind === 'tool' && block.name === 'browser'"
+            class="tool-call tool-call--browser"
+            :class="{ loading: block.loading }"
+          >
+            <summary class="tool-header tool-header--browser">
+              <span class="tool-icon-wrap">
+                <svg v-if="block.loading" class="tool-spinner tool-spinner--browser" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="2" stroke-dasharray="30 12" />
+                </svg>
+                <svg v-else class="tool-icon-svg tool-icon-svg--browser" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+                  <rect x="1" y="2" width="14" height="12" rx="1.5"/>
+                  <line x1="1" y1="6" x2="15" y2="6"/>
+                  <circle cx="4" cy="4" r="0.8" fill="currentColor" stroke="none"/>
+                  <circle cx="7" cy="4" r="0.8" fill="currentColor" stroke="none"/>
+                  <circle cx="10" cy="4" r="0.8" fill="currentColor" stroke="none"/>
+                </svg>
+              </span>
+              <span class="tool-label tool-label--browser">Browser:</span>
+              <span class="tool-query tool-query--browser">{{ block.query }}</span>
+              <span class="tool-expand-hint">{{ block.loading ? '' : '▶' }}</span>
+            </summary>
+            <!-- 截图直接渲染图片 -->
+            <template v-if="block.result">
+              <div v-if="block.result.includes('[IMAGE:data:image')" class="tool-result-browser-screenshot">
+                <img :src="block.result.match(/\[IMAGE:(data:image\/[^\]]+)\]/)?.[1]" alt="screenshot" class="browser-screenshot-img" />
+              </div>
+              <div v-else class="tool-result-text" v-html="marked.parse(block.result.replace(/\[IMAGE:[^\]]+\]/g, ''))"></div>
+            </template>
+          </details>
         </template>
       </template>
       <!-- Tool 调用状态 -->
@@ -270,6 +301,8 @@ async function copyUserContent() {
   flex-direction: column;
   gap: 0.3rem;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 /* 消息中的图片 */
@@ -510,6 +543,14 @@ async function copyUserContent() {
   margin: 0.6em 0;
 }
 
+/* 图片自适应宽度 */
+.markdown-body :deep(img) {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border: 2px solid #000;
+}
+
 /* 链接 */
 .markdown-body :deep(a) {
   color: #000;
@@ -608,6 +649,7 @@ async function copyUserContent() {
   font-size: 0.8rem;
   border-radius: 4px;
   overflow: hidden;
+  max-width: 100%;
 }
 
 .tool-call.loading {
@@ -866,6 +908,59 @@ async function copyUserContent() {
 .tool-spinner--bash {
   color: #4ade80;
 }
+/* Browser 工具样式 */
+.tool-call--browser {
+  border-color: #0ea5e9;
+  background: #0c1a2e;
+}
+
+.tool-call--browser.loading {
+  border-style: dashed;
+  border-color: #0284c7;
+}
+
+.tool-header--browser {
+  background: #0c1a2e;
+  border-bottom: 1px solid #1e3a5f;
+}
+
+.tool-header--browser:hover {
+  background: #112240;
+}
+
+.tool-label--browser {
+  color: #38bdf8;
+}
+
+.tool-query--browser {
+  color: #bae6fd;
+  font-family: 'Space Mono', monospace;
+}
+
+.tool-icon-svg--browser {
+  color: #38bdf8;
+}
+
+.tool-spinner--browser {
+  color: #38bdf8;
+}
+
+.tool-result-browser-screenshot {
+  padding: 0.5rem;
+  background: #000;
+  border-top: 1px solid #1e3a5f;
+  overflow: hidden;
+}
+
+.browser-screenshot-img {
+  max-width: 100%;
+  width: 100%;
+  height: auto;
+  display: block;
+  border: 1px solid #1e3a5f;
+  object-fit: contain;
+}
+
 /* Memory 工具样式 */
 .tool-call--memory {
   border-color: #7c3aed;

@@ -107,6 +107,11 @@ export async function fetchModels(): Promise<{ id: string; label: string; provid
 export async function fetchHistory(id: string): Promise<any[]> {
   const res = await fetch(`/api/history/${id}`)
   if (!res.ok) {
+    if (res.status === 404) {
+      const err = new Error('会话不存在或已被删除')
+        ; (err as any).status = 404
+      throw err
+    }
     throw new Error('获取历史记录失败')
   }
   return res.json()
