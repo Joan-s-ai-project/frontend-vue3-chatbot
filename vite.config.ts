@@ -27,6 +27,12 @@ export default defineConfig({
               proxyRes.headers['x-accel-buffering'] = 'no'
             }
           })
+          // http-proxy 对长连接不会主动传播客户端断连：
+          // 浏览器刷新/关页面只断开"浏览器↔Vite"，"Vite↔Koa"会一直挂着，
+          // 导致后端 req.on('close') 永不触发、生成无法止血。手动销毁上游连接。
+          proxy.on('proxyReq', (proxyReq, _req, res) => {
+            res.on('close', () => proxyReq.destroy())
+          })
         }
       }
     }

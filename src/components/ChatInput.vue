@@ -5,6 +5,12 @@ import type { AttachmentResult } from '@/services'
 
 const emit = defineEmits<{
   send: [message: string, images: string[], attachments: AttachmentResult[]]
+  stop: []
+}>()
+
+defineProps<{
+  /** AI 正在生成中：发送按钮切换为停止按钮 */
+  loading?: boolean
 }>()
 
 const editorRef = ref<HTMLDivElement>()
@@ -368,8 +374,14 @@ function getFileExt(name: string): string {
           aria-hidden="true"
         />
 
+        <!-- 生成中：停止按钮 -->
+        <button v-if="loading" @click="emit('stop')" title="停止生成">
+          <svg viewBox="0 0 24 24" fill="none" class="send-icon" xmlns="http://www.w3.org/2000/svg">
+            <rect x="6" y="6" width="12" height="12" rx="2" fill="#ffffff"/>
+          </svg>
+        </button>
         <!-- 发送按钮 -->
-        <button @click="handleSend" :disabled="sendDisabled" title="发送">
+        <button v-else @click="handleSend" :disabled="sendDisabled" title="发送">
           <svg viewBox="0 0 24 24" fill="none" class="send-icon" xmlns="http://www.w3.org/2000/svg">
             <path d="M3.478 2.405a.75.75 0 0 0-.926.94l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94l18.06-7.65a.75.75 0 0 0 0-1.39L3.478 2.405z" fill="#ffffff"/>
           </svg>

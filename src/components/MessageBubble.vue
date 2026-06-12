@@ -26,6 +26,8 @@ const props = defineProps<{
   model?: string
   toolCallsCount?: number
   messageCount?: number
+  /** 本条回复被中止（用户停止/断连/出错），内容可能不完整 */
+  stopped?: boolean
 }>()
 
 marked.setOptions({ breaks: true })
@@ -326,6 +328,8 @@ async function copyUserContent() {
         class="content markdown-body"
         v-html="renderedContent"
       ></div>
+      <!-- 中止标记 -->
+      <div class="stopped-badge" v-if="!isUser && stopped">⏹ 已停止生成</div>
       <!-- 费用信息 -->
       <div class="cost-info" v-if="!isUser && cost">
         <span class="cost-model">{{ model }}</span>
@@ -343,6 +347,12 @@ async function copyUserContent() {
 </template>
 
 <style scoped>
+.stopped-badge {
+  margin-top: 0.4rem;
+  font-size: 0.75rem;
+  color: #999;
+}
+
 .bubble {
   display: flex;
   gap: 0.6rem;

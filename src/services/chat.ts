@@ -101,6 +101,21 @@ export async function fetchChatStream(
 }
 
 /**
+ * 中止当前会话的生成
+ */
+export async function fetchStopChat(): Promise<{ stopped: boolean }> {
+  const res = await fetch('/api/v1/chat/stop', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId })
+  })
+  if (!res.ok) {
+    throw new Error(`停止请求失败 (${res.status})`)
+  }
+  return res.json()
+}
+
+/**
  * 获取可用模型列表
  */
 export async function fetchModels(): Promise<{ id: string; label: string; provider: string }[]> {

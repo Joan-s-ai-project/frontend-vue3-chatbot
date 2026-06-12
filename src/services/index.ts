@@ -6,7 +6,7 @@
 export { sessionId, isHistorySession, isReplaySession } from './chat'
 export type { StreamCallbacks } from './sse'
 
-import { fetchChat, fetchChatStream, fetchHistory, fetchHistoryList, fetchModels, fetchDeleteHistory } from './chat'
+import { fetchChat, fetchChatStream, fetchStopChat, fetchHistory, fetchHistoryList, fetchModels, fetchDeleteHistory } from './chat'
 import { consumeSseStream } from './sse'
 import type { StreamCallbacks } from './sse'
 import type { AttachmentResult } from './upload'
@@ -34,6 +34,14 @@ export async function sendStreamMessage(
 ) {
   const res = await fetchChatStream(message, images, model, attachments)
   await consumeSseStream(res, callbacks)
+}
+
+/**
+ * 中止当前会话的生成
+ * 后端会把已生成的半成品内容落盘，并通过 done(stopped:true) 事件收尾
+ */
+export async function stopGeneration() {
+  return fetchStopChat()
 }
 
 /**

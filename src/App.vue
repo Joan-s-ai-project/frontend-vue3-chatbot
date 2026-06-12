@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { sendStreamMessage, isHistorySession, isReplaySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession, replaySession } from '@/services'
+import { sendStreamMessage, stopGeneration, isHistorySession, isReplaySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession, replaySession } from '@/services'
 import type { AttachmentResult } from '@/services'
 
 // 新会话：第一次发消息后把 sessionId 写入 URL，方便分享/定位
@@ -169,6 +169,7 @@ async function startReplay(id: string) {
         aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
         aiMsg.cost = data.cost; aiMsg.usage = data.usage; aiMsg.model = data.model
         aiMsg.toolCallsCount = data.toolCallsCount; aiMsg.messageCount = data.messageCount
+        if (data.stopped) aiMsg.stopped = true
         loading.value = false
       },
       onError(msg, code) {
@@ -283,6 +284,8 @@ function mapHistoryToMessages(history: any[]): Message[] {
 
       // model 取最后一条有值的
       if (item.model) currentAiMsg.model = item.model
+      // 半成品消息（被中止/出错）带 stopped 标记
+      if (item.stopped) currentAiMsg.stopped = true
       continue
     }
 
@@ -354,6 +357,23 @@ onMounted(async () => {
   // ── Replay 模式：/replay/:uuid ──────────────────────────────────────
   if (isReplaySession) {
     startReplay(sessionId)
+  }
+})
+
+/** 停止当前生成：后端会落盘半成品并以 done(stopped:true) 收尾，loading 由 onDone 关闭 */
+async function handleStop() {
+  try {
+    await stopGeneration()
+  } catch (err: any) {
+    showToast(`停止失败：${err.message}`)
+  }
+}
+
+// 刷新/关闭页面时显式止血（双保险）：TCP 断连要靠代理层逐跳传播，可能丢；
+// sendBeacon 在页面卸载后仍保证送达，直接告诉后端"停"
+window.addEventListener('pagehide', () => {
+  if (loading.value) {
+    navigator.sendBeacon('/api/v1/chat/stop', new Blob([JSON.stringify({ sessionId })], { type: 'application/json' }))
   }
 })
 
@@ -467,6 +487,7 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
         aiMsg.model = data.model
         aiMsg.toolCallsCount = data.toolCallsCount
         aiMsg.messageCount = data.messageCount
+        if (data.stopped) aiMsg.stopped = true
         loading.value = false
       },
       onError(msg, code) {
@@ -558,7 +579,7 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
 
     <!-- 输入框 -->
     <div class="input-wrapper">
-      <ChatInput ref="chatInputRef" @send="(msg, imgs, atts) => handleSend(msg, imgs, atts)" />
+      <ChatInput ref="chatInputRef" :loading="loading" @send="(msg, imgs, atts) => handleSend(msg, imgs, atts)" @stop="handleStop" />
       <p class="disclaimer">AI 生成内容仅供参考</p>
     </div>
   </div>
