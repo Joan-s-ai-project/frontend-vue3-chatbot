@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { sendStreamMessage, isHistorySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession } from '@/services'
+import { sendStreamMessage, isHistorySession, isReplaySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession, replaySession } from '@/services'
 import type { AttachmentResult } from '@/services'
 
 // 新会话：第一次发消息后把 sessionId 写入 URL，方便分享/定位
@@ -81,6 +81,118 @@ async function handleDeleteSession(id: string, event: Event) {
   }
 }
 
+const replayingId = ref<string | null>(null)
+
+/**
+ * 启动回放：加载 user 消息 + 流式回放 AI 响应
+ * 可在 onMounted（URL 已是 /replay/:id）或 handleReplaySession（pushState 后）中调用
+ */
+async function startReplay(id: string) {
+  if (replayingId.value) return
+  replayingId.value = id
+  messages.value = []
+  loading.value = true
+
+  try {
+    const history = await loadHistory(id)
+    const userMsgs = history.filter((m: any) => m.role === 'user')
+    messages.value = userMsgs.map((m: any, i: number) => ({
+      id: i,
+      content: m.content || '',
+      isUser: true,
+      ...(m.images?.length ? { images: m.images } : {}),
+      ...(m.attachments?.length ? { attachments: m.attachments } : {}),
+    }))
+
+    messages.value.push({
+      id: Date.now(),
+      content: '',
+      isUser: false,
+      blocks: [],
+    })
+    const aiMsg = messages.value[messages.value.length - 1]
+
+    await nextTick()
+    messageListRef.value?.scrollToBottom()
+
+    await replaySession(id, {
+      onReasoning(chunk) {
+        const last = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (last?.kind === 'thinking' && last.loading) { last.content += chunk }
+        else { aiMsg.blocks!.push({ kind: 'thinking', content: chunk, loading: true }) }
+      },
+      onContent(chunk) {
+        const last = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (last?.kind === 'thinking' && last.loading) last.loading = false
+        aiMsg.content += chunk
+      },
+      onContentEnd() {
+        if (aiMsg.content) {
+          aiMsg.blocks!.push({ kind: 'content', content: aiMsg.content })
+          aiMsg.content = ''
+        }
+      },
+      onSearching(query) {
+        const last = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (last?.kind === 'thinking' && last.loading) last.loading = false
+        aiMsg.blocks!.push({ kind: 'tool', name: 'search_web', query, loading: true })
+      },
+      onBashRunning(command) {
+        const last = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (last?.kind === 'thinking' && last.loading) last.loading = false
+        aiMsg.blocks!.push({ kind: 'tool', name: 'run_bash', command, loading: true })
+      },
+      onMemorySearching(query) {
+        const last = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (last?.kind === 'thinking' && last.loading) last.loading = false
+        aiMsg.blocks!.push({ kind: 'tool', name: 'memory_search', query, loading: true })
+      },
+      onMemorySaving(_cid) {
+        const last = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (last?.kind === 'thinking' && last.loading) last.loading = false
+        aiMsg.blocks!.push({ kind: 'tool', name: 'memory_save', loading: true })
+      },
+      onBrowserAction(data) {
+        const last = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (last?.kind === 'thinking' && last.loading) last.loading = false
+        aiMsg.blocks!.push({
+          kind: 'tool', name: 'browser',
+          query: data.action + (data.url ? `: ${data.url}` : data.selector ? `: ${data.selector}` : ''),
+          loading: true,
+        })
+      },
+      onToolResult(data) {
+        const tb = [...aiMsg.blocks!].reverse().find(b => b.kind === 'tool' && b.name === data.name && b.loading)
+        if (tb && tb.kind === 'tool') { tb.result = data.result; tb.loading = false }
+      },
+      onDone(data) {
+        aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
+        aiMsg.cost = data.cost; aiMsg.usage = data.usage; aiMsg.model = data.model
+        aiMsg.toolCallsCount = data.toolCallsCount; aiMsg.messageCount = data.messageCount
+        loading.value = false
+      },
+      onError(msg, code) {
+        aiMsg.content = code ? `❌ [${code}] ${msg}` : `❌ ${msg}`
+        aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
+        loading.value = false
+      },
+    })
+  } catch (err: any) {
+    showToast(`回放失败：${err.message}`)
+    loading.value = false
+  } finally {
+    replayingId.value = null
+  }
+}
+
+function handleReplaySession(id: string, event: Event) {
+  event.stopPropagation()
+  sidebarOpen.value = false
+  // 更新 URL 到 /replay/:id（不刷新页面），然后启动回放
+  window.history.pushState(null, '', `/replay/${id}`)
+  startReplay(id)
+}
+
 /**
  * 将后端 JSONL 格式的历史消息映射为前端 Message 格式
  * 同一轮对话（一个 user 问题对应的所有 assistant+tool 轮次）合并为一个 Message
@@ -107,6 +219,8 @@ function mapHistoryToMessages(history: any[]): Message[] {
         if (item.cost)  currentAiMsg.cost  = item.cost
         if (item.usage) currentAiMsg.usage = item.usage
         if (item.model) currentAiMsg.model = item.model
+        if (item.toolCallsCount) currentAiMsg.toolCallsCount = item.toolCallsCount
+        if (item.messageCount)   currentAiMsg.messageCount   = item.messageCount
         flushAiMsg()
       }
       continue
@@ -136,18 +250,18 @@ function mapHistoryToMessages(history: any[]): Message[] {
         }
       }
 
-      // 追加 reasoning 为新的 thinking 块
+      // reasoning 始终作为 thinking 块
       if (item.reasoning) {
         currentAiMsg.blocks!.push({ kind: 'thinking', content: item.reasoning, loading: false })
       }
 
-      // 追加 content（最终回答）
-      if (item.content) {
-        currentAiMsg.content += item.content
-      }
-
-      // 追加 tool_calls 为 tool 块
       if (item.tool_calls && item.tool_calls.length > 0) {
+        // ── 中间轮（有 tool_calls）──
+        // content 是模型在调工具前说的话，作为独立 content 块放进 blocks
+        if (item.content) {
+          currentAiMsg.blocks!.push({ kind: 'content', content: item.content })
+        }
+        // 追加 tool 块（等待 tool 消息回填结果）
         for (const tc of item.tool_calls) {
           const args = tc.function?.arguments ? JSON.parse(tc.function.arguments) : {}
           currentAiMsg.blocks!.push({
@@ -158,6 +272,12 @@ function mapHistoryToMessages(history: any[]): Message[] {
             result: '',
             loading: false,
           })
+        }
+      } else {
+        // ── 最终轮（无 tool_calls）──
+        // content 是最终回答，放进 aiMsg.content 供 markdown 渲染
+        if (item.content) {
+          currentAiMsg.content += item.content
         }
       }
 
@@ -230,6 +350,11 @@ onMounted(async () => {
       console.error('[App] 加载历史失败:', err.message)
     }
   }
+
+  // ── Replay 模式：/replay/:uuid ──────────────────────────────────────
+  if (isReplaySession) {
+    startReplay(sessionId)
+  }
 })
 
 async function handleSend(text: string, images: string[] = [], attachments: AttachmentResult[] = []) {
@@ -274,6 +399,13 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
           lastBlock.loading = false
         }
         aiMsg.content += chunk
+      },
+      onContentEnd() {
+        // 把当前 content 封装为一个 content block，为下一轮腾出位置
+        if (aiMsg.content) {
+          aiMsg.blocks!.push({ kind: 'content', content: aiMsg.content })
+          aiMsg.content = ''
+        }
       },
       onSearching(query) {
         // 关闭最后一个 thinking 块的 loading
@@ -333,6 +465,8 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
         aiMsg.cost = data.cost
         aiMsg.usage = data.usage
         aiMsg.model = data.model
+        aiMsg.toolCallsCount = data.toolCallsCount
+        aiMsg.messageCount = data.messageCount
         loading.value = false
       },
       onError(msg, code) {
@@ -373,13 +507,20 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
           @click="openSession(s.id)"
         >
           <div class="session-title">{{ s.title || '新对话' }}</div>
-          <button 
-            class="session-delete-btn" 
-            @click="handleDeleteSession(s.id, $event)"
-            title="删除会话"
-          >
-            🗑️
-          </button>
+          <div class="session-actions">
+            <button
+              class="session-action-btn session-replay-btn"
+              @click="handleReplaySession(s.id, $event)"
+              title="在新标签页回放"
+            >▶</button>
+            <button 
+              class="session-action-btn session-delete-btn" 
+              @click="handleDeleteSession(s.id, $event)"
+              title="删除会话"
+            >
+              🗑️
+            </button>
+          </div>
         </li>
       </ul>
     </aside>
@@ -388,7 +529,7 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
     <header class="header">
       <div class="header-left">
         <button class="menu-btn" @click="sidebarOpen = !sidebarOpen" title="会话列表">☰</button>
-        <div class="header-title">
+        <div class="header-title" @click="newSession" style="cursor:pointer" title="返回首页">
           <span class="logo">■</span>
           <h1>AI CHAT</h1>
         </div>
@@ -795,7 +936,6 @@ body {
   justify-content: space-between;
   gap: 0.5rem;
 }
-
 .session-item:hover {
   border-color: #000;
   background: #f0f0f0;
@@ -856,4 +996,43 @@ body {
 .session-item--active .session-delete-btn:hover {
   color: #ff6666;
 }
-</style>
+
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  flex-shrink: 0;
+}
+
+.session-action-btn {
+  background: none;
+  border: none;
+  color: #999;
+  font-size: 0.72rem;
+  cursor: pointer;
+  padding: 0.2rem 0.3rem;
+  line-height: 1;
+  transition: all 0.1s;
+}
+
+.session-action-btn:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.session-replay-btn:hover:not(:disabled) {
+  color: #16a34a;
+  transform: scale(1.2);
+}
+
+.session-item--active .session-action-btn {
+  color: #ccc;
+}
+
+.session-item--active .session-replay-btn:hover:not(:disabled) {
+  color: #86efac;
+}
+
+.session-item--active .session-delete-btn:hover {
+  color: #ff6666;
+}</style>

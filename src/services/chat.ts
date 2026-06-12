@@ -25,9 +25,18 @@ function getSessionIdFromUrl(): string | null {
   return uuidRegex.test(path) ? path : null
 }
 
+// 识别 /replay/:uuid 路径
+function getReplayIdFromUrl(): string | null {
+  const match = window.location.pathname.match(
+    /^\/replay\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i
+  )
+  return match ? match[1] : null
+}
+
 // 如果 URL 中有 UUID 则复用，否则生成新的
-export const sessionId = getSessionIdFromUrl() || generateUUID()
+export const sessionId = getSessionIdFromUrl() || getReplayIdFromUrl() || generateUUID()
 export const isHistorySession = !!getSessionIdFromUrl()
+export const isReplaySession = !!getReplayIdFromUrl()
 
 console.log('[Chat] sessionId:', sessionId, isHistorySession ? '(from URL)' : '(new)')
 

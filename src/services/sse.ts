@@ -6,13 +6,14 @@
 export interface StreamCallbacks {
   onReasoning?: (text: string) => void
   onContent?: (text: string) => void
+  onContentEnd?: () => void
   onSearching?: (query: string) => void
   onBashRunning?: (command: string) => void
   onMemorySearching?: (query: string) => void
   onMemorySaving?: (conversationId: string) => void
   onBrowserAction?: (data: { action: string; url?: string; selector?: string }) => void
   onToolResult?: (data: { name: string; query?: string; command?: string; result: string }) => void
-  onDone?: (data: { usage?: any; cost?: any; model?: string }) => void
+  onDone?: (data: { usage?: any; cost?: any; model?: string; toolCallsCount?: number; messageCount?: number }) => void
   onError?: (message: string, code?: number | string) => void
 }
 
@@ -60,6 +61,9 @@ export async function consumeSseStream(res: Response, callbacks: StreamCallbacks
         case 'content':
           callbacks.onContent?.(data.content)
           break
+        case 'content_end':
+          callbacks.onContentEnd?.()
+          break
         case 'searching':
           callbacks.onSearching?.(data.query)
           break
@@ -79,7 +83,13 @@ export async function consumeSseStream(res: Response, callbacks: StreamCallbacks
           callbacks.onToolResult?.({ name: data.name, query: data.query, command: data.command, result: data.result })
           break
         case 'done':
-          callbacks.onDone?.({ usage: data.usage, cost: data.cost, model: data.model })
+          callbacks.onDone?.({
+            usage: data.usage,
+            cost: data.cost,
+            model: data.model,
+            toolCallsCount: data.toolCallsCount,
+            messageCount: data.messageCount,
+          })
           break
         case 'error':
           callbacks.onError?.(data.message, data.code)

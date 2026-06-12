@@ -18,6 +18,7 @@ export interface ThinkingBlock {
 /** 有序的内容块，按实际产生顺序排列 */
 export type ContentBlock =
   | { kind: 'thinking'; content: string; loading: boolean }
+  | { kind: 'content'; content: string }
   | { kind: 'tool'; name: string; query?: string; command?: string; result?: string; loading?: boolean }
 
 export interface Message {
@@ -42,6 +43,8 @@ export interface Message {
     cached_tokens: number
   }
   model?: string
+  toolCallsCount?: number
+  messageCount?: number
   // 以下两个字段保留，供流式写入时使用，渲染时统一走 blocks
   thinkingBlocks?: ThinkingBlock[]
   toolCalls?: ToolCall[]
@@ -134,6 +137,8 @@ watch(
         :cost="msg.cost"
         :usage="msg.usage"
         :model="msg.model"
+        :tool-calls-count="msg.toolCallsCount"
+        :message-count="msg.messageCount"
         :images="msg.images"
         :attachments="msg.attachments"
       />

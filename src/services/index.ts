@@ -3,7 +3,7 @@
  * 组合 API 请求层与数据解析层，对外暴露业务方法
  */
 
-export { sessionId, isHistorySession } from './chat'
+export { sessionId, isHistorySession, isReplaySession } from './chat'
 export type { StreamCallbacks } from './sse'
 
 import { fetchChat, fetchChatStream, fetchHistory, fetchHistoryList, fetchModels, fetchDeleteHistory } from './chat'
@@ -62,4 +62,16 @@ export async function loadModels() {
  */
 export async function deleteSession(id: string) {
   return fetchDeleteHistory(id)
+}
+
+/**
+ * 回放历史会话（SSE 流式，模拟真实对话流）
+ * 用于前端调试，无需消耗 API 费用
+ */
+export async function replaySession(id: string, callbacks: StreamCallbacks) {
+  const res = await fetch(`/api/replay/${id}`)
+  if (!res.ok) {
+    throw new Error(`Replay failed (${res.status})`)
+  }
+  await consumeSseStream(res, callbacks)
 }

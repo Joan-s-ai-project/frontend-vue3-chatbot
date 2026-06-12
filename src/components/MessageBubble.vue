@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, nextTick, watch, onMounted } from 'vue'
 import { marked } from 'marked'
 import ThinkingBlock from './ThinkingBlock.vue'
 import type { ContentBlock } from './MessageList.vue'
@@ -24,6 +24,8 @@ const props = defineProps<{
     cached_tokens: number
   }
   model?: string
+  toolCallsCount?: number
+  messageCount?: number
 }>()
 
 marked.setOptions({ breaks: true })
@@ -33,6 +35,76 @@ const renderedContent = computed(() => {
   const isStreaming = props.blocks?.some(b => b.kind === 'thinking' && b.loading) ?? false
   const raw = isStreaming ? props.content + '\n\n' : props.content
   return marked.parse(raw) as string
+})
+
+// ——— 代码块复制按钮 ———
+const bubbleRef = ref<HTMLElement | null>(null)
+
+function attachCopyButtons(container: HTMLElement | null) {
+  if (!container) return
+  const blocks = container.querySelectorAll<HTMLPreElement>('pre')
+  blocks.forEach(pre => {
+    // 避免重复注入
+    if (pre.querySelector('.code-copy-btn')) return
+
+    // 确保 pre 有 position:relative
+    pre.style.position = 'relative'
+
+    const btn = document.createElement('button')
+    btn.className = 'code-copy-btn'
+    btn.title = '复制代码'
+    btn.innerHTML = `
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13">
+        <rect x="5" y="1" width="9" height="11" rx="1" />
+        <rect x="1" y="4" width="9" height="11" rx="1" />
+      </svg>`
+
+    btn.addEventListener('click', async () => {
+      const code = pre.querySelector('code')?.innerText ?? pre.innerText
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(code)
+        } else {
+          const el = document.createElement('textarea')
+          el.value = code
+          el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'
+          document.body.appendChild(el)
+          el.focus(); el.select()
+          document.execCommand('copy')
+          document.body.removeChild(el)
+        }
+        btn.classList.add('copied')
+        btn.innerHTML = `
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+            <polyline points="2,8 6,12 14,4" />
+          </svg>`
+        setTimeout(() => {
+          btn.classList.remove('copied')
+          btn.innerHTML = `
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" width="13" height="13">
+              <rect x="5" y="1" width="9" height="11" rx="1" />
+              <rect x="1" y="4" width="9" height="11" rx="1" />
+            </svg>`
+        }, 1500)
+      } catch { /* ignore */ }
+    })
+
+    pre.appendChild(btn)
+  })
+}
+
+// 内容变化时（流式更新）重新注入
+watch(renderedContent, () => {
+  nextTick(() => attachCopyButtons(bubbleRef.value))
+})
+
+// blocks 变化时（tool/content块）也重新注入
+watch(() => props.blocks, () => {
+  nextTick(() => attachCopyButtons(bubbleRef.value))
+}, { deep: true })
+
+onMounted(() => {
+  nextTick(() => attachCopyButtons(bubbleRef.value))
 })
 
 const userContent = computed(() => props.content ?? '')
@@ -66,7 +138,7 @@ async function copyUserContent() {
 </script>
 
 <template>
-  <div class="bubble" :class="{ user: isUser, assistant: !isUser }">
+  <div class="bubble" :class="{ user: isUser, assistant: !isUser }" ref="bubbleRef">
     <div class="avatar">{{ isUser ? '█' : '░' }}</div>
     <div class="body">
       <!-- 用户消息中的图片 -->
@@ -101,6 +173,12 @@ async function copyUserContent() {
             :content="block.content"
             :loading="block.loading"
           />
+          <!-- content 块（中间轮的文字回复） -->
+          <div
+            v-else-if="block.kind === 'content'"
+            class="content markdown-body"
+            v-html="marked.parse(block.content)"
+          ></div>
           <!-- search_web tool -->
           <details
             v-else-if="block.kind === 'tool' && block.name === 'search_web'"
@@ -255,6 +333,9 @@ async function copyUserContent() {
         <span>↑{{ usage?.prompt_tokens?.toLocaleString() }} ↓{{ usage?.completion_tokens?.toLocaleString() }} tokens</span>
         <span v-if="usage?.cached_tokens" class="cost-cache">缓存 {{ usage.cached_tokens.toLocaleString() }}</span>
         <span class="cost-sep">|</span>
+        <span v-if="toolCallsCount" class="cost-tools">🔧 {{ toolCallsCount }} calls</span>
+        <span v-if="messageCount" class="cost-msgs">💬 {{ messageCount }} msgs</span>
+        <span v-if="toolCallsCount || messageCount" class="cost-sep">|</span>
         <span class="cost-total">{{ cost.currency === 'USD' ? '$' : '¥' }}{{ cost.total_cost.toFixed(4) }}</span>
       </div>
     </div>
@@ -841,6 +922,16 @@ async function copyUserContent() {
   font-size: 0.68rem;
 }
 
+.cost-tools {
+  color: #888;
+  font-size: 0.68rem;
+}
+
+.cost-msgs {
+  color: #888;
+  font-size: 0.68rem;
+}
+
 .cost-total {
   font-weight: 700;
   color: #000;
@@ -1008,6 +1099,44 @@ async function copyUserContent() {
   background: #1a1030;
   border-radius: 4px;
   font-size: 0.8rem;
+}
+
+/* ===== 代码块复制按钮 ===== */
+:deep(.code-copy-btn) {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: #2e2e2e;
+  border: 1.5px solid #555;
+  border-radius: 3px;
+  cursor: pointer;
+  color: #aaa;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
+  z-index: 1;
+}
+
+:deep(pre:hover .code-copy-btn) {
+  opacity: 1;
+}
+
+:deep(.code-copy-btn:hover) {
+  background: #444;
+  color: #fff;
+  border-color: #888;
+}
+
+:deep(.code-copy-btn.copied) {
+  background: #14532d;
+  border-color: #16a34a;
+  color: #4ade80;
+  opacity: 1;
 }
 
 .user .markdown-body :deep(code) {
