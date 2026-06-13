@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, nextTick } from 'vue'
-import { sendStreamMessage, stopGeneration, isHistorySession, isReplaySession, sessionId, loadHistory, loadHistoryList, loadModels, deleteSession, replaySession } from '@/services'
+import { sendStreamMessage, stopGeneration, isHistorySession, isReplaySession, sessionId, loadHistory, loadHistoryList, loadModels, loadTools, deleteSession, replaySession } from '@/services'
 import type { AttachmentResult } from '@/services'
 
 // 新会话：第一次发消息后把 sessionId 写入 URL，方便分享/定位
@@ -33,6 +33,32 @@ function showToast(msg: string, duration = 2000) {
 interface ModelOption { id: string; label: string; provider: string }
 const models = ref<ModelOption[]>([])
 const selectedModel = ref('')
+
+// ── 工具开关 ──────────────────────────────────────────────────────────
+interface ToolInfo { id: string; label: string }
+const availableTools = ref<ToolInfo[]>([])
+
+/** 从 localStorage 恢复；key 不在可用列表里会被忽略 */
+function loadEnabledSet(tools: ToolInfo[]): Set<string> {
+  try {
+    const stored = localStorage.getItem('disabledToolIds')
+    const disabled = stored ? new Set<string>(JSON.parse(stored)) : new Set<string>()
+    return new Set(tools.map(t => t.id).filter(id => !disabled.has(id)))
+  } catch {
+    return new Set(tools.map(t => t.id))
+  }
+}
+
+const enabledToolIds = ref<Set<string>>(new Set())
+
+function toggleTool(id: string) {
+  const next = new Set(enabledToolIds.value)
+  if (next.has(id)) { next.delete(id) } else { next.add(id) }
+  enabledToolIds.value = next
+  // 持久化禁用集合
+  const disabled = availableTools.value.map(t => t.id).filter(tid => !next.has(tid))
+  localStorage.setItem('disabledToolIds', JSON.stringify(disabled))
+}
 
 // ── 历史会话列表 ──────────────────────────────────────────────────────
 interface SessionItem { id: string; title: string; createdAt: number; messageCount: number }
@@ -323,6 +349,15 @@ onMounted(async () => {
     console.error('[App] 加载模型列表失败:', err.message)
   }
 
+  // 加载可用工具列表，恢复上次的开关状态
+  try {
+    const tools = await loadTools()
+    availableTools.value = tools
+    enabledToolIds.value = loadEnabledSet(tools)
+  } catch (err: any) {
+    console.error('[App] 加载工具列表失败:', err.message)
+  }
+
   // 加载历史会话列表
   await refreshSessionList()
 
@@ -495,7 +530,8 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
         aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
         loading.value = false
       }
-    }, selectedModel.value || undefined, attachments.length > 0 ? attachments : undefined)
+    }, selectedModel.value || undefined, attachments.length > 0 ? attachments : undefined,
+      [...enabledToolIds.value])
   } catch (err: any) {
     aiMsg.content = `❌ ${err.message}`
     aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
@@ -579,7 +615,15 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
 
     <!-- 输入框 -->
     <div class="input-wrapper">
-      <ChatInput ref="chatInputRef" :loading="loading" @send="(msg, imgs, atts) => handleSend(msg, imgs, atts)" @stop="handleStop" />
+      <ChatInput
+        ref="chatInputRef"
+        :loading="loading"
+        :tools="availableTools"
+        :enabled-tool-ids="enabledToolIds"
+        @send="(msg, imgs, atts) => handleSend(msg, imgs, atts)"
+        @stop="handleStop"
+        @toggle-tool="toggleTool"
+      />
       <p class="disclaimer">AI 生成内容仅供参考</p>
     </div>
   </div>

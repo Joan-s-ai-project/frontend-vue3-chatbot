@@ -2,15 +2,21 @@
 import { ref, computed, onMounted } from 'vue'
 import { uploadAttachment, validateFile, MAX_ATTACHMENTS } from '@/services'
 import type { AttachmentResult } from '@/services'
+import ToolBar from './ToolBar.vue'
 
 const emit = defineEmits<{
   send: [message: string, images: string[], attachments: AttachmentResult[]]
   stop: []
+  toggleTool: [id: string]
 }>()
 
 defineProps<{
   /** AI 正在生成中：发送按钮切换为停止按钮 */
   loading?: boolean
+  /** 当前可用工具列表（由 App 注入） */
+  tools?: { id: string; label: string }[]
+  /** 当前已启用的工具 ID 集合 */
+  enabledToolIds?: Set<string>
 }>()
 
 const editorRef = ref<HTMLDivElement>()
@@ -362,6 +368,14 @@ function getFileExt(name: string): string {
             />
           </svg>
         </button>
+
+        <!-- 工具选择下拉（有可用工具时显示） -->
+        <ToolBar
+          v-if="tools && tools.length > 0 && enabledToolIds"
+          :tools="tools"
+          :enabled="enabledToolIds"
+          @toggle="(id) => emit('toggleTool', id)"
+        />
 
         <!-- 隐藏的文件输入 -->
         <input

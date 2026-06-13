@@ -6,7 +6,7 @@
 export { sessionId, isHistorySession, isReplaySession } from './chat'
 export type { StreamCallbacks } from './sse'
 
-import { fetchChat, fetchChatStream, fetchStopChat, fetchHistory, fetchHistoryList, fetchModels, fetchDeleteHistory } from './chat'
+import { fetchChat, fetchChatStream, fetchStopChat, fetchHistory, fetchHistoryList, fetchModels, fetchDeleteHistory, fetchTools } from './chat'
 import { consumeSseStream } from './sse'
 import type { StreamCallbacks } from './sse'
 import type { AttachmentResult } from './upload'
@@ -31,9 +31,17 @@ export async function sendStreamMessage(
   callbacks: StreamCallbacks,
   model?: string,
   attachments?: AttachmentResult[],
+  enabledToolIds?: string[],
 ) {
-  const res = await fetchChatStream(message, images, model, attachments)
+  const res = await fetchChatStream(message, images, model, attachments, enabledToolIds)
   await consumeSseStream(res, callbacks)
+}
+
+/**
+ * 获取当前已注册工具列表（前端开关控件用）
+ */
+export async function loadTools(): Promise<{ id: string; label: string }[]> {
+  return fetchTools()
 }
 
 /**

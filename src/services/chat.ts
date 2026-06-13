@@ -68,6 +68,7 @@ export async function fetchChatStream(
   images?: string[],
   model?: string,
   attachments?: AttachmentResult[],
+  enabledToolIds?: string[],
 ): Promise<Response> {
   const body: any = { sessionId, message, temperature: 0.1 }
   if (images && images.length > 0) {
@@ -78,6 +79,9 @@ export async function fetchChatStream(
   }
   if (attachments && attachments.length > 0) {
     body.attachments = attachments
+  }
+  if (enabledToolIds) {
+    body.enabledToolIds = enabledToolIds
   }
 
   const res = await fetch('/api/v1/chat/completion', {
@@ -121,6 +125,15 @@ export async function fetchStopChat(): Promise<{ stopped: boolean }> {
 export async function fetchModels(): Promise<{ id: string; label: string; provider: string }[]> {
   const res = await fetch('/api/models')
   if (!res.ok) throw new Error('获取模型列表失败')
+  return res.json()
+}
+
+/**
+ * 获取当前已注册（凭据已配置）的工具列表
+ */
+export async function fetchTools(): Promise<{ id: string; label: string }[]> {
+  const res = await fetch('/api/tools')
+  if (!res.ok) throw new Error('获取工具列表失败')
   return res.json()
 }
 
