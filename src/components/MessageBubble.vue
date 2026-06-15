@@ -166,6 +166,15 @@ async function copyUserContent() {
           </template>
         </div>
       </div>
+      <!-- 等待第一个 token：空 assistant bubble 时显示 typing indicator -->
+      <div
+        v-if="!isUser && !content && (!blocks || blocks.length === 0) && !stopped"
+        class="typing-indicator"
+        aria-label="正在思考"
+      >
+        <span></span><span></span><span></span>
+      </div>
+
       <!-- 有序内容块：thinking 和 tool 按实际产生顺序交替渲染 -->
       <template v-if="!isUser && blocks && blocks.length">
         <template v-for="(block, idx) in blocks" :key="idx">
@@ -347,6 +356,33 @@ async function copyUserContent() {
 </template>
 
 <style scoped>
+/* ── Typing indicator (brutalist) ── */
+.typing-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0.5rem 0.75rem;
+  border: 3px solid #000;
+  background: #fff;
+}
+
+.typing-indicator span {
+  display: block;
+  width: 7px;
+  height: 7px;
+  background: #000;
+  opacity: 0.1;
+  animation: brutal-wave 1.4s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.28s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.56s; }
+
+@keyframes brutal-wave {
+  0%, 100% { opacity: 0.1; }
+  40%       { opacity: 1; }
+}
+
 .stopped-badge {
   margin-top: 0.4rem;
   font-size: 0.75rem;
