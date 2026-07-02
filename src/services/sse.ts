@@ -13,7 +13,7 @@ export interface StreamCallbacks {
   onMemorySaving?: (conversationId: string) => void
   onBrowserAction?: (data: { action: string; url?: string; selector?: string }) => void
   onToolResult?: (data: { name: string; query?: string; command?: string; result: string }) => void
-  onDone?: (data: { usage?: any; cost?: any; model?: string; toolCallsCount?: number; messageCount?: number; stopped?: boolean; error?: string }) => void
+  onDone?: (data: { usage?: any; cost?: any; model?: string; toolCallsCount?: number; messageCount?: number; duration?: number; stopped?: boolean; error?: string }) => void
   onError?: (message: string, code?: number | string) => void
 }
 
@@ -89,6 +89,7 @@ export async function consumeSseStream(res: Response, callbacks: StreamCallbacks
             model: data.model,
             toolCallsCount: data.toolCallsCount,
             messageCount: data.messageCount,
+            duration: data.duration,
             stopped: data.stopped,
             error: data.error,
           })

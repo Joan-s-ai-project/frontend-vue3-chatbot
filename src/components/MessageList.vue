@@ -45,6 +45,10 @@ export interface Message {
   model?: string
   toolCallsCount?: number
   messageCount?: number
+  /** 消息创建时间（毫秒时间戳） */
+  createdAt?: number
+  /** 处理总时长（毫秒），仅 assistant 消息 */
+  duration?: number
   /** 本条回复被中止（用户停止/断连/出错），内容可能不完整 */
   stopped?: boolean
   // 以下两个字段保留，供流式写入时使用，渲染时统一走 blocks
@@ -141,6 +145,8 @@ watch(
         :model="msg.model"
         :tool-calls-count="msg.toolCallsCount"
         :message-count="msg.messageCount"
+        :created-at="msg.createdAt"
+        :duration="msg.duration"
         :stopped="msg.stopped"
         :images="msg.images"
         :attachments="msg.attachments"

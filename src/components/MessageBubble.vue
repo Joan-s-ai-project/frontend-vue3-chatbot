@@ -26,6 +26,10 @@ const props = defineProps<{
   model?: string
   toolCallsCount?: number
   messageCount?: number
+  /** 消息创建时间（毫秒时间戳） */
+  createdAt?: number
+  /** 处理总时长（毫秒），仅 assistant 消息 */
+  duration?: number
   /** 本条回复被中止（用户停止/断连/出错），内容可能不完整 */
   stopped?: boolean
 }>()
@@ -109,6 +113,26 @@ onMounted(() => {
   nextTick(() => attachCopyButtons(bubbleRef.value))
 })
 
+/** 格式化 createdAt 为 MM/DD HH:MM */
+const formattedTime = computed(() => {
+  if (!props.createdAt) return ''
+  const d = new Date(props.createdAt)
+  const mm = (d.getMonth() + 1).toString().padStart(2, '0')
+  const dd = d.getDate().toString().padStart(2, '0')
+  const hh = d.getHours().toString().padStart(2, '0')
+  const mi = d.getMinutes().toString().padStart(2, '0')
+  return `${mm}/${dd} ${hh}:${mi}`
+})
+
+/** 格式化 duration（毫秒）为 Xm Ys 或 Xs */
+const formattedDuration = computed(() => {
+  if (!props.duration) return ''
+  const totalSeconds = Math.round(props.duration / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
+})
+
 const userContent = computed(() => props.content ?? '')
 
 const copied = ref(false)
@@ -141,7 +165,10 @@ async function copyUserContent() {
 
 <template>
   <div class="bubble" :class="{ user: isUser, assistant: !isUser }" ref="bubbleRef">
-    <div class="avatar">{{ isUser ? '█' : '░' }}</div>
+    <div class="avatar-col">
+      <div class="avatar">{{ isUser ? '█' : '░' }}</div>
+      <span v-if="formattedTime" class="msg-time">{{ formattedTime }}</span>
+    </div>
     <div class="body">
       <!-- 用户消息中的图片 -->
       <div class="msg-images" v-if="isUser && images && images.length">
@@ -350,6 +377,10 @@ async function copyUserContent() {
         <span v-if="messageCount" class="cost-msgs">💬 {{ messageCount }} msgs</span>
         <span v-if="toolCallsCount || messageCount" class="cost-sep">|</span>
         <span class="cost-total">{{ cost.currency === 'USD' ? '$' : '¥' }}{{ cost.total_cost.toFixed(4) }}</span>
+        <template v-if="formattedDuration">
+          <span class="cost-sep">|</span>
+          <span class="cost-duration">⏱ {{ formattedDuration }}</span>
+        </template>
       </div>
     </div>
   </div>
@@ -405,6 +436,14 @@ async function copyUserContent() {
   align-self: flex-start;
 }
 
+.avatar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  flex-shrink: 0;
+}
+
 .avatar {
   width: 32px;
   height: 32px;
@@ -416,6 +455,14 @@ async function copyUserContent() {
   background: #fff;
   flex-shrink: 0;
   line-height: 1;
+}
+
+.msg-time {
+  font-size: 0.55rem;
+  color: #999;
+  font-family: 'Space Mono', monospace;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
 }
 
 .user .avatar {
@@ -983,6 +1030,12 @@ async function copyUserContent() {
   color: #000;
   border: 2px solid #000;
   padding: 0 0.3rem;
+}
+
+.cost-duration {
+  font-weight: 700;
+  color: #555;
+  font-size: 0.68rem;
 }
 .tool-result-bash {
   font-family: 'Space Mono', 'Courier New', monospace;

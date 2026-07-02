@@ -195,6 +195,7 @@ async function startReplay(id: string) {
         aiMsg.blocks!.forEach(b => { if ('loading' in b) b.loading = false })
         aiMsg.cost = data.cost; aiMsg.usage = data.usage; aiMsg.model = data.model
         aiMsg.toolCallsCount = data.toolCallsCount; aiMsg.messageCount = data.messageCount
+        aiMsg.duration = data.duration; aiMsg.createdAt = Date.now()
         if (data.stopped) aiMsg.stopped = true
         loading.value = false
       },
@@ -240,7 +241,7 @@ function mapHistoryToMessages(history: any[]): Message[] {
   for (const item of history) {
     if (item.role === 'system') continue
 
-    // done 事件：把 usage/cost/model 回填到当前 AI 消息
+    // done 事件：把 usage/cost/model/duration 回填到当前 AI 消息
     if (item.type === 'done') {
       if (currentAiMsg) {
         if (item.cost)  currentAiMsg.cost  = item.cost
@@ -248,6 +249,8 @@ function mapHistoryToMessages(history: any[]): Message[] {
         if (item.model) currentAiMsg.model = item.model
         if (item.toolCallsCount) currentAiMsg.toolCallsCount = item.toolCallsCount
         if (item.messageCount)   currentAiMsg.messageCount   = item.messageCount
+        if (item.duration)       currentAiMsg.duration        = item.duration
+        if (item.createdAt)      currentAiMsg.createdAt       = item.createdAt
         flushAiMsg()
       }
       continue
@@ -260,6 +263,7 @@ function mapHistoryToMessages(history: any[]): Message[] {
         id: idCounter++,
         content: item.content || '',
         isUser: true,
+        ...(item.createdAt ? { createdAt: item.createdAt } : {}),
         ...(item.images && item.images.length > 0 ? { images: item.images } : {}),
         ...(item.attachments && item.attachments.length > 0 ? { attachments: item.attachments } : {}),
       })
@@ -274,6 +278,7 @@ function mapHistoryToMessages(history: any[]): Message[] {
           content: '',
           isUser: false,
           blocks: [],
+          ...(item.createdAt ? { createdAt: item.createdAt } : {}),
         }
       }
 
@@ -420,6 +425,7 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
     id: Date.now(),
     content: text,
     isUser: true,
+    createdAt: Date.now(),
     images: images.length > 0 ? images : undefined,
     attachments: attachments.length > 0
       ? attachments.map(a => ({ type: a.type, name: a.name, dataUrl: a.dataUrl }))
@@ -522,6 +528,8 @@ async function handleSend(text: string, images: string[] = [], attachments: Atta
         aiMsg.model = data.model
         aiMsg.toolCallsCount = data.toolCallsCount
         aiMsg.messageCount = data.messageCount
+        aiMsg.duration = data.duration
+        aiMsg.createdAt = Date.now()
         if (data.stopped) aiMsg.stopped = true
         loading.value = false
       },
