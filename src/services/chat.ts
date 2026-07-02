@@ -131,7 +131,7 @@ export async function fetchModels(): Promise<{ id: string; label: string; provid
 /**
  * 获取当前已注册（凭据已配置）的工具列表
  */
-export async function fetchTools(): Promise<{ id: string; label: string }[]> {
+export async function fetchTools(): Promise<{ id: string; label: string; source: string; group?: string }[]> {
   const res = await fetch('/api/tools')
   if (!res.ok) throw new Error('获取工具列表失败')
   return res.json()

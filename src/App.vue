@@ -35,7 +35,7 @@ const models = ref<ModelOption[]>([])
 const selectedModel = ref('')
 
 // ── 工具开关 ──────────────────────────────────────────────────────────
-interface ToolInfo { id: string; label: string }
+interface ToolInfo { id: string; label: string; source: string; group?: string }
 const availableTools = ref<ToolInfo[]>([])
 
 /** 从 localStorage 恢复；key 不在可用列表里会被忽略 */
@@ -184,6 +184,18 @@ async function startReplay(id: string) {
         aiMsg.blocks!.push({
           kind: 'tool', name: 'browser',
           query: data.action + (data.url ? `: ${data.url}` : data.selector ? `: ${data.selector}` : ''),
+          loading: true,
+        })
+      },
+      onMcpToolRunning(data) {
+        const lastBlock = aiMsg.blocks![aiMsg.blocks!.length - 1]
+        if (lastBlock?.kind === 'thinking' && lastBlock.loading) {
+          lastBlock.loading = false
+        }
+        aiMsg.blocks!.push({
+          kind: 'tool',
+          name: data.name,
+          query: `${data.serverId} / ${data.toolName}`,
           loading: true,
         })
       },

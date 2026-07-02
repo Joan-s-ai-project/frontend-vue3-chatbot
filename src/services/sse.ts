@@ -12,6 +12,7 @@ export interface StreamCallbacks {
   onMemorySearching?: (query: string) => void
   onMemorySaving?: (conversationId: string) => void
   onBrowserAction?: (data: { action: string; url?: string; selector?: string }) => void
+  onMcpToolRunning?: (data: { name: string; serverId: string; toolName: string; args: Record<string, any> }) => void
   onToolResult?: (data: { name: string; query?: string; command?: string; result: string }) => void
   onDone?: (data: { usage?: any; cost?: any; model?: string; toolCallsCount?: number; messageCount?: number; duration?: number; stopped?: boolean; error?: string }) => void
   onError?: (message: string, code?: number | string) => void
@@ -78,6 +79,14 @@ export async function consumeSseStream(res: Response, callbacks: StreamCallbacks
           break
         case 'browser_action':
           callbacks.onBrowserAction?.({ action: data.action, url: data.url, selector: data.selector })
+          break
+        case 'mcp_tool_running':
+          callbacks.onMcpToolRunning?.({
+            name: data.name,
+            serverId: data.serverId,
+            toolName: data.toolName,
+            args: data.args || {},
+          })
           break
         case 'tool_result':
           callbacks.onToolResult?.({ name: data.name, query: data.query, command: data.command, result: data.result })

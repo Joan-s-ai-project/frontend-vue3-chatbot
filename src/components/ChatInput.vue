@@ -14,7 +14,7 @@ defineProps<{
   /** AI 正在生成中：发送按钮切换为停止按钮 */
   loading?: boolean
   /** 当前可用工具列表（由 App 注入） */
-  tools?: { id: string; label: string }[]
+  tools?: { id: string; label: string; source: string; group?: string }[]
   /** 当前已启用的工具 ID 集合 */
   enabledToolIds?: Set<string>
 }>()

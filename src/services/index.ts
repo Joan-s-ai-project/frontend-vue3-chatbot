@@ -40,7 +40,7 @@ export async function sendStreamMessage(
 /**
  * 获取当前已注册工具列表（前端开关控件用）
  */
-export async function loadTools(): Promise<{ id: string; label: string }[]> {
+export async function loadTools(): Promise<{ id: string; label: string; source: string; group?: string }[]> {
   return fetchTools()
 }
 

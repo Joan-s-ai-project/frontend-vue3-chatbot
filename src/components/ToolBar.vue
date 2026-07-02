@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 
 const props = defineProps<{
-  tools: { id: string; label: string }[]
+  tools: { id: string; label: string; source: string; group?: string }[]
   enabled: Set<string>
 }>()
 
@@ -64,7 +64,7 @@ onUnmounted(() => document.removeEventListener('click', onDocClick, true))
         @click="emit('toggle', tool.id)"
       >
         <span class="tool-item-check">{{ enabled.has(tool.id) ? '✓' : ' ' }}</span>
-        <span class="tool-item-icon">{{ TOOL_ICONS[tool.id] ?? '🔧' }}</span>
+        <span class="tool-item-icon">{{ tool.source === 'mcp' ? '🔌' : (TOOL_ICONS[tool.id] ?? '🔧') }}</span>
         <span class="tool-item-label">{{ tool.label }}</span>
       </div>
     </div>
